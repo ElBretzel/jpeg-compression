@@ -4,8 +4,8 @@
 // https://www.geocities.ws/crestwoodsdd/JPEG.htm
 // https://help.accusoft.com/ImageGear-Net/v24.12/Windows/HTML/JPEG_Non-Image_Data_Structure.html
 
-const uint16_t SOI = 0xFFD8;
-const uint8_t APPN = 0xFF;
+const uint8_t MARKERSTART = 0xFF;
+const uint8_t SOI = 0xD8;
 const uint8_t APP0 = 0xE0;
 const uint8_t APP1 = 0xE1;
 const uint8_t APP2 = 0xE2;
@@ -22,16 +22,24 @@ const uint8_t APPC = 0xEC;
 const uint8_t APPD = 0xED;
 const uint8_t APPE = 0xEE;
 const uint8_t APPF = 0xEF;
-const uint16_t DQT = 0xFFDB;
+const uint8_t DQT = 0xDB;
 const uint8_t DQTMI = 0x03;
 const uint8_t DQTMP = 0x01;
 const uint8_t DQTVAL = 0x40;
 const uint8_t DQTBLOC = 0x08;
-const uint16_t SOF0 = 0xFFC0;
-const uint16_t SOS = 0xFFDA;
-const uint16_t EOI = 0xFFD9;
+const uint8_t SOF0 = 0xC0;
+const uint8_t SOS = 0xDA;
+const uint8_t EOI = 0xD9;
+const uint8_t DHT = 0xC4;
+const uint8_t DNL = 0xDC;
+const uint8_t DRI = 0xDD;
+const uint8_t COM = 0xFE;
 
-// https://www.researchgate.net/profile/Fernando-Martin-Rodriguez/publication/369759372/figure/fig2/AS:11431281136821988@1680579134024/Zig-zag-ordering-from-JPEG-standard.png
-const uint8_t zigZagMap[] = {0,  1,  8,  16, 9,  2,  3,  10, 17, 24, 32, 25, 18, 11, 4,  5,  12, 19, 26, 33, 40, 48,
-                             41, 34, 27, 20, 13, 6,  7,  14, 21, 28, 35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23,
-                             30, 37, 44, 51, 58, 59, 52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63};
+// See ITU-T81 Fig A.6
+const uint8_t zigZagMap[] = {0,  1,  5,  6,  14, 15, 27, 28, 2,  4,  7,  13, 16, 26, 29, 42, 3,  8,  12, 17, 25, 30,
+                             41, 43, 9,  11, 18, 24, 31, 40, 44, 53, 10, 19, 23, 32, 39, 45, 52, 54, 20, 22, 33, 38,
+                             46, 51, 55, 60, 21, 34, 37, 47, 50, 56, 59, 61, 35, 36, 48, 49, 57, 58, 62, 63};
+const uint8_t reverseZigZagMap[] = {0,  1,  8,  16, 9,  2,  3,  10, 17, 24, 32, 25, 18, 11, 4,  5,
+                                    12, 19, 26, 33, 40, 48, 41, 34, 27, 20, 13, 6,  7,  14, 21, 28,
+                                    35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23, 30, 37, 44, 51,
+                                    58, 59, 52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63};

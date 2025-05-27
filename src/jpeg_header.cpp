@@ -1,19 +1,21 @@
 #include "jpeg_header.hpp"
 
 bool fillDQT(std::ifstream& jpegFile, std::array<Quantization, 4>& tables) {
+    auto read_byte = [&jpegFile]() {
+        return static_cast<uint8_t>(jpegFile.get());
+    };
+
     uint8_t b1;
     uint8_t b2;
     uint16_t u1;
     uint16_t u2;
 
-    b1 = jpegFile.get();
-    b2 = jpegFile.get();
-    u1 = (b1 << 8) | b2;
+    u1 = (read_byte() << 8) | read_byte();
     u2 = u1 - 2;
 
     while (u2) {
         Quantization quant;
-        b1 = jpegFile.get();
+        b1 = read_byte();
         u2--;
         b2 = (b1 >> 4); // table precision
         b1 = b1 & 0x0F; // table id
@@ -34,12 +36,12 @@ bool fillDQT(std::ifstream& jpegFile, std::array<Quantization, 4>& tables) {
         if (b2 == 0) {
             uint8_t i = 0;
             while (i < DQTVAL) {
-                b1 = jpegFile.get();
+                b1 = read_byte();
                 if (b1 == EOF) {
                     std::cerr << "Can not check validity of jpeg file: " << "DQT ended prematuraly" << std::endl;
                     return false;
                 }
-                quant.values[zigZagMap[i]] = b1;
+                quant.values[reverseZigZagMap[i]] = b1;
                 i++;
                 if (u2 == 0 && i < DQTVAL) {
                     std::cerr << "Can not check validity of jpeg file: "
@@ -49,17 +51,17 @@ bool fillDQT(std::ifstream& jpegFile, std::array<Quantization, 4>& tables) {
                 u2--;
             }
 
-        } else {
+        } else if (b1 == 1) {
             uint8_t i = 0;
             while (i < DQTVAL) {
-                b1 = jpegFile.get();
-                b2 = jpegFile.get();
+                b1 = read_byte();
+                b2 = read_byte();
                 if (b1 == EOF || b2 == EOF) {
                     std::cerr << "Can not check validity of jpeg file: " << "DQT ended prematuraly" << std::endl;
                     return false;
                 }
                 u1 = (b1 << 8) | b2;
-                quant.values[zigZagMap[i]] = u1;
+                quant.values[reverseZigZagMap[i]] = u1;
                 i++;
                 if (u2 < 2 && i < DQTVAL) {
                     std::cerr << "Can not check validity of jpeg file: "
@@ -68,9 +70,94 @@ bool fillDQT(std::ifstream& jpegFile, std::array<Quantization, 4>& tables) {
                 }
                 u2 -= 2;
             }
+        } else {
+            std::cerr << "Can not check validity of jpeg file: "
+                      << "Quantization tables precision overflow" << std::endl;
+            return false;
         }
         quant.completed = true;
         tables[quant.tableId] = quant;
+    }
+    return true;
+}
+
+bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
+    auto read_byte = [&jpegFile]() {
+        return static_cast<uint8_t>(jpegFile.get());
+    };
+
+    uint8_t b1;
+    uint8_t b2;
+    uint16_t u1;
+    uint16_t u2;
+
+    header->type = 0x00; // Baseline
+
+    u1 = (read_byte() << 8) | read_byte() - 2;
+    if (u1 >= 0xFF || u1 == 0) {
+        std::cerr << "Can not check validity of jpeg file: " << "Incorrect SOF0 size" << std::endl;
+        return false;
+    }
+    if (u1-- < 1 || read_byte() != 0x08) {
+        std::cerr << "Can not check validity of jpeg file: " << "SOF0 detected yet wrong precision specified"
+                  << std::endl;
+        return false;
+    }
+
+    header->height = (read_byte() << 8) | read_byte();
+    header->width = (read_byte() << 8) | read_byte();
+
+    if (u1 < 2 || header->width <= 0 || header->height <= 0) {
+        std::cerr << "Can not check validity of jpeg file: " << "File dim is <= 0" << std::endl;
+        return false;
+    }
+    u1 -= 2;
+
+    b1 = read_byte();
+    if (u1-- < 1 || b1 != 0x01 && b1 != 0x03) {
+        std::cerr << "Can not check validity of jpeg file: " << "Only grayscaled and RGB image supported" << std::endl;
+        return false;
+    }
+    header->numberComponents = b1;
+
+    if (u1 < b1 * 0x03) {
+        std::cerr << "Can not check validity of jpeg file: " << "Incorrect SOF0 size" << std::endl;
+        return false;
+    }
+
+    for (uint8_t ci = 0; ci < b1; ci++) {
+        uint8_t id = read_byte();
+        if (id == 0x00 || id > 0x03) {
+            std::cerr << "Can not check validity of jpeg file: " << "YCbCr ID weirdly specified" << std::endl;
+            return false;
+        }
+        Channel channel = std::move(header->channels[id - 1]);
+        if (channel.completed) {
+            std::cerr << "Can not check validity of jpeg file: " << "Channel already been filled" << std::endl;
+            return false;
+        }
+        b2 = read_byte();
+        channel.horizontalSampling = b2 >> 4;
+        channel.verticalSampling = b2 & 0x0F;
+        channel.quantizationId = read_byte();
+        if (channel.quantizationId > 3) {
+            std::cerr << "Can not check validity of jpeg file: " << "Quantization table ID overflow" << std::endl;
+            return false;
+        }
+        channel.completed = true;
+        header->channels[id - 1] = std::move(channel);
+    }
+
+    return true;
+}
+
+bool readLength(std::ifstream& jpegFile, uint16_t length) {
+    while (length--) {
+        uint8_t b = jpegFile.get();
+        if (b == EOF) {
+            std::cerr << "Can not check validity of jpeg file: " << "Read ended prematuraly" << std::endl;
+            return false;
+        }
     }
     return true;
 }
@@ -98,58 +185,70 @@ std::unique_ptr<Header> scanHeader(const std::string& filePath) {
         std::cerr << "Can not check validity of jpeg file: " << "file can't be opened" << std::endl;
         return header;
     }
-    // https://en.wikipedia.org/wiki/JPEG_File_Interchange_Format
-    // https://www.geocities.ws/crestwoodsdd/JPEG.htm
-    // https://help.accusoft.com/ImageGear-Net/v24.12/Windows/HTML/JPEG_Non-Image_Data_Structure.html
+    auto read_byte = [&jpegFile]() {
+        return static_cast<uint8_t>(jpegFile.get());
+    };
 
-    // SOI check
-    b1 = jpegFile.get();
-    b2 = jpegFile.get();
-    u1 = (b1 << 8) | b2;
-    if (u1 != SOI) {
+    // https://www.w3.org/Graphics/JPEG/itu-t81.pdf
+    if (read_byte() != MARKERSTART || read_byte() != SOI) {
         std::cerr << "Can not check validity of jpeg file: " << "SOI incorrect" << std::endl;
         return header;
     }
 
-    // APPN check
-    b1 = jpegFile.get();
-    b2 = jpegFile.get();
-
-    if (b1 != APPN || (b2 < APP0 || b2 > APPF)) {
+    if (b1 = read_byte(), b2 = read_byte(); b1 != MARKERSTART || (b2 < APP0 || b2 > APPF)) {
         std::cerr << "Can not check validity of jpeg file: " << "APP incorrect" << std::endl;
         return header;
     }
 
-    // APPN skip
-    b1 = jpegFile.get();
-    b2 = jpegFile.get();
-    u1 = (b1 << 8) | b2;
-    u2 = u1 - 2;
-
-    while (u2--) {
-        if (jpegFile.get() == EOF) {
-            std::cerr << "Can not check validity of jpeg file: " << "APP ended prematuraly" << std::endl;
-            return header;
-        }
-    }
-
-    // DQT or HUFF
-    b1 = jpegFile.get();
-    b2 = jpegFile.get();
-    u1 = (b1 << 8) | b2;
-
-    if (u1 == DQT) {
-        fillDQT(jpegFile, header->tables);
-    } else {
-        std::cerr << "Can not check validity of jpeg file: " << "Quantization tables not present" << std::endl;
+    if (!readLength(jpegFile, (read_byte() << 8) | read_byte() - 2)) {
         return header;
     }
+
+    do {
+        if (read_byte() != MARKERSTART) {
+            std::cerr << "Can not check validity of jpeg file: " << "Marker not present" << std::endl;
+            return header;
+        }
+
+        b2 = jpegFile.get();
+
+        if (b2 == DQT) {
+            if (!fillDQT(jpegFile, header->tables)) {
+                return header;
+            }
+        } else if (b2 == SOF0) {
+            if (!fillFrame(jpegFile, header)) {
+                return header;
+            }
+
+        } else if (b2 == DHT) {
+        } else if (b2 == SOS) {
+
+        } else if (b2 == DNL) {
+
+        } else if (b2 == DRI) {
+
+        } else if (b2 == COM) {
+            if (!readLength(jpegFile, (read_byte() << 8) | read_byte() - 2)) {
+                return header;
+            }
+        } else if (b2 == EOI) {
+
+        } else {
+            std::cerr << "Marker not implemented: ";
+            BYTE_TO_HEX(b2);
+            std::cout << std::endl;
+            return header;
+        }
+
+    } while (!jpegFile.eof());
 
     header->isValid = true;
     return header;
 }
 
 void printHeader(const Header& header) {
+    std::cout << "Header valid: " << header.isValid << std::endl;
     std::cout << "======= DQT TABLE ========" << std::endl;
 
     for (uint8_t i = 0; i < DQTMI + 1; i++) {
@@ -164,5 +263,20 @@ void printHeader(const Header& header) {
             BYTE_TO_HEX(static_cast<uint8_t>(header.tables[i].values[j]));
         }
         std::cout << std::endl;
+    }
+
+    std::cout << "======= SOF TABLE ========" << std::endl;
+    std::cout << "Image width: " << header.width << std::endl;
+    std::cout << "Image height: " << header.height << std::endl;
+    std::cout << "Image type: 0x";
+    BYTE_TO_HEX(header.type);
+    std::cout << std::endl;
+    std::cout << "Number of channels: " << static_cast<int>(header.numberComponents) << std::endl;
+    for (auto i = 0; i < header.numberComponents; i++) {
+        std::cout << "Channel ID: " << i << std::endl;
+        std::cout << "Completed: " << header.channels[i].completed << std::endl;
+        std::cout << "Horizontal sampling: " << static_cast<int>(header.channels[i].horizontalSampling) << std::endl;
+        std::cout << "Vertical sampling: " << static_cast<int>(header.channels[i].verticalSampling) << std::endl;
+        std::cout << "Quantization table ID: " << static_cast<int>(header.channels[i].quantizationId) << std::endl;
     }
 }

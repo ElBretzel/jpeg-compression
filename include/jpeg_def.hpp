@@ -13,8 +13,8 @@
 // https://www.geocities.ws/crestwoodsdd/JPEG.htm
 // https://help.accusoft.com/ImageGear-Net/v24.12/Windows/HTML/JPEG_Non-Image_Data_Structure.html
 
-extern const uint16_t SOI;
-extern const uint8_t APPN;
+extern const uint8_t MARKERSTART;
+extern const uint8_t SOI;
 extern const uint8_t APP0;
 extern const uint8_t APP1;
 extern const uint8_t APP2;
@@ -31,13 +31,18 @@ extern const uint8_t APPC;
 extern const uint8_t APPD;
 extern const uint8_t APPE;
 extern const uint8_t APPF;
-extern const uint16_t DQT;
+extern const uint8_t DQT;
 extern const uint8_t DQTMP;
 extern const uint8_t DQTMI;
 extern const uint8_t DQTVAL;
 extern const uint8_t DQTBLOC;
-extern const uint16_t SOF0;
-extern const uint16_t SOS;
-extern const uint16_t EOI;
+extern const uint8_t SOF0;
+extern const uint8_t SOS;
+extern const uint8_t DHT;
+extern const uint8_t EOI;
+extern const uint8_t DNL;
+extern const uint8_t DRI;
+extern const uint8_t COM;
 
 extern const uint8_t zigZagMap[];
+extern const uint8_t reverseZigZagMap[];

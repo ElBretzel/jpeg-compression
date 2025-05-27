@@ -27,7 +27,7 @@ void initBrowser() {
 }
 
 void prelude() {
-    auto header = scanHeader("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/4.1.03.jpg");
+    auto header = scanHeader("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/4.2.03.jpg");
     printHeader(*header);
 }
 
