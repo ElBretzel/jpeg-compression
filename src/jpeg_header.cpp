@@ -19,15 +19,13 @@ bool fillDQT(std::ifstream& jpegFile, std::array<Quantization, 4>& tables) {
     uint8_t b1;
     uint8_t b2;
     uint16_t u1;
-    uint16_t u2;
 
-    u1 = (read_byte() << 8) | read_byte();
-    u2 = u1 - 2;
+    u1 = (read_byte() << 8) | read_byte() - 2;
 
-    while (u2) {
+    while (u1) {
         Quantization quant;
         b1 = read_byte();
-        u2--;
+        u1--;
         b2 = (b1 >> 4); // table precision
         b1 = b1 & 0x0F; // table id
 
@@ -59,23 +57,18 @@ bool fillDQT(std::ifstream& jpegFile, std::array<Quantization, 4>& tables) {
             }
             quant.values[reverseZigZagMap[i]] = b1;
             i++;
-            if (u2 == 0 && i < DQTVAL) {
+            if (u1 == 0 && i < DQTVAL) {
                 std::cerr << "Can not check validity of jpeg file: "
                           << "Quantization tables length invalid, terminated early" << std::endl;
                 return false;
             }
-            u2--;
+            u1--;
         }
 
         quant.completed = true;
         tables[quant.tableId] = quant;
     }
 
-    if (u2) {
-        std::cerr << "Can not check validity of jpeg file: "
-                  << "DQT data left" << std::endl;
-        return false;
-    }
     return true;
 }
 
@@ -92,37 +85,52 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
     uint8_t b1;
     uint8_t b2;
     uint16_t u1;
-    uint16_t u2;
 
     header->type = SOF0BAS; // Baseline
 
     u1 = (read_byte() << 8) | read_byte() - 2;
-    if (u1-- < 1 || read_byte() != SOF0PRE) {
+    if (!u1) {
+        std::cerr << "Can not check validity of jpeg file: " << "Incorrect SOF0 size" << std::endl;
+        return false;
+    }
+
+    if (read_byte() != SOF0PRE) {
         std::cerr << "Can not check validity of jpeg file: " << "SOF0 detected yet wrong precision specified"
                   << std::endl;
+        return false;
+    }
+
+    if (--u1 < 4) {
+        std::cerr << "Can not check validity of jpeg file: " << "Incorrect SOF0 size" << std::endl;
         return false;
     }
 
     header->height = (read_byte() << 8) | read_byte();
     header->width = (read_byte() << 8) | read_byte();
 
-    if (u1 < 2 || header->width == 0 || header->height == 0) {
+    if (header->width == 0 || header->height == 0) {
         std::cerr << "Can not check validity of jpeg file: "
                   << "File dimension should be known, live encoding is not supported" << std::endl;
         return false;
     }
-    u1 -= 2;
+    u1 -= 4;
+
+    if (!u1) {
+        std::cerr << "Can not check validity of jpeg file: " << "Incorrect SOF0 size" << std::endl;
+        return false;
+    }
 
     b1 = read_byte();
     // Nf can be 0-255 but because this value is used in sof to identify comp id, we will restrict to 4 channels without
     // repetition
-    if (u1-- < 1 || !b1 || b1 > SOF0MAXCOMP) {
+    if (!b1 || b1 > SOF0MAXCOMP) {
         std::cerr << "Can not check validity of jpeg file: " << "Image should have 1 to 4 channels" << std::endl;
         return false;
     }
     header->numberComponents = b1;
+    u1--;
 
-    if (u1 < b1 * SOF0LEN) {
+    if (u1 != b1 * 3) {
         std::cerr << "Can not check validity of jpeg file: " << "Incorrect SOF0 size" << std::endl;
         return false;
     }
@@ -140,7 +148,7 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
         }
         Channel channel = std::move(header->channels[id - 1]);
         if (channel.completed) {
-            std::cerr << "Can not check validity of jpeg file: " << "Channel already been filled" << std::endl;
+            std::cerr << "Can not check validity of jpeg file: " << "SOF channel already been filled" << std::endl;
             return false;
         }
         b2 = read_byte();
@@ -164,6 +172,7 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
         }
         channel.completed = true;
         header->channels[id - 1] = std::move(channel);
+        u1 -= 3;
     }
 
     return true;
@@ -281,6 +290,88 @@ bool fillDHT(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
     return true;
 }
 
+bool fillSOS(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
+    auto read_byte = [&jpegFile]() {
+        return static_cast<uint8_t>(jpegFile.get());
+    };
+
+    uint8_t b1;
+    uint8_t b2;
+    uint16_t u1;
+    uint16_t u2;
+
+    u1 = read_byte() << 8 | read_byte() - 2;
+    if (!u1) {
+        std::cerr << "Can not check validity of jpeg file: "
+                  << "SOS wrong size" << std::endl;
+        return false;
+    }
+
+    for (auto& c : header->channels) {
+        c.completed = false;
+    }
+
+    b1 = read_byte();
+    if (--u1 < 2 * b1) {
+        std::cerr << "Can not check validity of jpeg file: "
+                  << "SOS can not store channels coding" << std::endl;
+        return false;
+    }
+
+    // For simplicity, we will ignore the rule of following same order of components ID with the SOF
+    // Sampling is also ignored for now (and maybe will never be implemented)
+
+    for (uint8_t i = 0; i < b1; i++) {
+        uint8_t id = read_byte();
+        if (header->appType == APPE) {
+            id += 1;
+        }
+        if (id > header->numberComponents) {
+            std::cerr << "Can not check validity of jpeg file: "
+                      << "SOS component ID is greater than the total number of components" << std::endl;
+            return false;
+        }
+        Channel channel = std::move(header->channels[id - 1]);
+        if (channel.completed) {
+            std::cerr << "Can not check validity of jpeg file: " << "SOS channel already been filled" << std::endl;
+            return false;
+        }
+
+        b2 = read_byte();
+        channel.huffDCId = b2 >> 4;
+        channel.huffACId = b2 & 0x0F;
+
+        if (channel.huffACId > DHTMHT || channel.huffDCId > DHTMHT) {
+            std::cerr << "Can not check validity of jpeg file: " << "SOS channel Huffman ID overflow" << std::endl;
+            return false;
+        }
+
+        channel.completed = true;
+        header->channels[id - 1] = std::move(channel);
+        u1 -= 2;
+    }
+    if (u1 != 3) {
+        std::cerr << "Can not check validity of jpeg file: "
+                  << "SOS wrong size" << std::endl;
+        return false;
+    }
+    if (b1 = read_byte(), b2 = read_byte(); b1 != SOSSPECS || b2 != SOSSPECE) {
+        std::cerr << "Can not check validity of jpeg file: "
+                  << "Non baseline spectral selection is not supported" << std::endl;
+        return false;
+    }
+    b1 = read_byte();
+    b2 = b1 >> 4;
+    b1 = b1 & 0x0F;
+    if (b1 != SOSSUCC || b2 != SOSSUCC) {
+        std::cerr << "Can not check validity of jpeg file: "
+                  << "Non baseline successive approximation position bit is not supported" << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
 std::unique_ptr<Header> scanHeader(const std::string& filePath) {
     // Some utility variables
     uint8_t b1;
@@ -343,15 +434,18 @@ std::unique_ptr<Header> scanHeader(const std::string& filePath) {
                 return header;
             }
         } else if (b2 == SOS) {
-
-            std::cout << "SOS found" << std::endl;
+            if (!fillSOS(jpegFile, header)) {
+                return header;
+            }
+            break;
         } else if (b2 == DRI) {
             if (!fillRestart(jpegFile, header)) {
                 return header;
             }
 
         } else if (b2 == EOI) {
-
+            std::cerr << "Can not check validity of jpeg file: " << "EOI can not be found before SOS" << std::endl;
+            return header;
         } else if (b2 == MARKERSTART) {
             // Fill byte, skip...
         } else if (!b2) {
@@ -434,6 +528,7 @@ void printDHTTable(const Header& header) {
             }
             std::cout << "]; ";
         }
+        std::cout << "}" << std::endl;
     }
 }
 

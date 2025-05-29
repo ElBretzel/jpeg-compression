@@ -2,6 +2,7 @@
 #include "frame_counter.hpp"
 #include "sprite_handler.hpp"
 
+#include "jpeg_body.hpp"
 #include "jpeg_header.hpp"
 
 FileBrowser fileBrowser;
@@ -27,8 +28,12 @@ void initBrowser() {
 }
 
 void prelude() {
-    auto header = scanHeader("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/gorilla.jpg");
-    printHeader(*header);
+    auto filePath = "/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/gorilla.jpg";
+    auto header = scanHeader(filePath);
+    auto body = scanBody(filePath, header);
+    header = nullptr; // Ownership moved into body
+
+    printHeader(*body->header);
 }
 
 int main() {

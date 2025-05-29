@@ -19,6 +19,8 @@ struct Channel {
     uint8_t horizontalSampling; // between 1 and 4
     uint8_t verticalSampling;   // between 1 and 4
     uint8_t quantizationId;     // between 0 and 3
+    uint8_t huffACId;           // 0 or 1
+    uint8_t huffDCId;           // 0 or 1
     bool completed = false;
 };
 
