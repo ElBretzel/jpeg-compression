@@ -33,48 +33,29 @@ bool fillDQT(std::ifstream& jpegFile, std::array<Quantization, 4>& tables) {
         quant.tableId = b1;
         quant.tablePrecision = b2;
 
-        if (b2 == 0) {
-            uint8_t i = 0;
-            while (i < DQTVAL) {
-                b1 = read_byte();
-                if (b1 == EOF) {
-                    std::cerr << "Can not check validity of jpeg file: " << "DQT ended prematuraly" << std::endl;
-                    return false;
-                }
-                quant.values[reverseZigZagMap[i]] = b1;
-                i++;
-                if (u2 == 0 && i < DQTVAL) {
-                    std::cerr << "Can not check validity of jpeg file: "
-                              << "Quantization tables length invalid, terminated early" << std::endl;
-                    return false;
-                }
-                u2--;
-            }
-
-        } else if (b1 == 1) {
-            uint8_t i = 0;
-            while (i < DQTVAL) {
-                b1 = read_byte();
-                b2 = read_byte();
-                if (b1 == EOF || b2 == EOF) {
-                    std::cerr << "Can not check validity of jpeg file: " << "DQT ended prematuraly" << std::endl;
-                    return false;
-                }
-                u1 = (b1 << 8) | b2;
-                quant.values[reverseZigZagMap[i]] = u1;
-                i++;
-                if (u2 < 2 && i < DQTVAL) {
-                    std::cerr << "Can not check validity of jpeg file: "
-                              << "Quantization tables length invalid, terminated early" << std::endl;
-                    return false;
-                }
-                u2 -= 2;
-            }
-        } else {
+        if (b2 != 0) {
             std::cerr << "Can not check validity of jpeg file: "
-                      << "Quantization tables precision overflow" << std::endl;
+                      << "Sequential baseline only supported. Precision overflow" << std::endl;
             return false;
         }
+
+        uint8_t i = 0;
+        while (i < DQTVAL) {
+            b1 = read_byte();
+            if (b1 == EOF) {
+                std::cerr << "Can not check validity of jpeg file: " << "DQT ended prematuraly" << std::endl;
+                return false;
+            }
+            quant.values[reverseZigZagMap[i]] = b1;
+            i++;
+            if (u2 == 0 && i < DQTVAL) {
+                std::cerr << "Can not check validity of jpeg file: "
+                          << "Quantization tables length invalid, terminated early" << std::endl;
+                return false;
+            }
+            u2--;
+        }
+
         quant.completed = true;
         tables[quant.tableId] = quant;
     }
@@ -86,19 +67,20 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
         return static_cast<uint8_t>(jpegFile.get());
     };
 
+    if (header->type != 0xFF) {
+        std::cerr << "Can not check validity of jpeg file: " << "Image contains more than 1 frame" << std::endl;
+        return false;
+    }
+
     uint8_t b1;
     uint8_t b2;
     uint16_t u1;
     uint16_t u2;
 
-    header->type = 0x00; // Baseline
+    header->type = SOF0BAS; // Baseline
 
     u1 = (read_byte() << 8) | read_byte() - 2;
-    if (u1 >= 0xFF || u1 == 0) {
-        std::cerr << "Can not check validity of jpeg file: " << "Incorrect SOF0 size" << std::endl;
-        return false;
-    }
-    if (u1-- < 1 || read_byte() != 0x08) {
+    if (u1-- < 1 || read_byte() != SOF0PRE) {
         std::cerr << "Can not check validity of jpeg file: " << "SOF0 detected yet wrong precision specified"
                   << std::endl;
         return false;
@@ -107,28 +89,28 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
     header->height = (read_byte() << 8) | read_byte();
     header->width = (read_byte() << 8) | read_byte();
 
-    if (u1 < 2 || header->width <= 0 || header->height <= 0) {
-        std::cerr << "Can not check validity of jpeg file: " << "File dim is <= 0" << std::endl;
+    if (u1 < 2 || header->width == 0 || header->height == 0) {
+        std::cerr << "Can not check validity of jpeg file: " << "File dim should be greater than 0" << std::endl;
         return false;
     }
     u1 -= 2;
 
     b1 = read_byte();
-    if (u1-- < 1 || b1 != 0x01 && b1 != 0x03) {
+    if (u1-- < 1 || b1 != SOF0GRAY && b1 != SOF0RGB) {
         std::cerr << "Can not check validity of jpeg file: " << "Only grayscaled and RGB image supported" << std::endl;
         return false;
     }
     header->numberComponents = b1;
 
-    if (u1 < b1 * 0x03) {
+    if (u1 < b1 * SOF0LEN) {
         std::cerr << "Can not check validity of jpeg file: " << "Incorrect SOF0 size" << std::endl;
         return false;
     }
 
     for (uint8_t ci = 0; ci < b1; ci++) {
         uint8_t id = read_byte();
-        if (id == 0x00 || id > 0x03) {
-            std::cerr << "Can not check validity of jpeg file: " << "YCbCr ID weirdly specified" << std::endl;
+        if (id < SOF0GRAY || id > SOF0RGB) {
+            std::cerr << "Can not check validity of jpeg file: " << "Channel ID weirdly specified" << std::endl;
             return false;
         }
         Channel channel = std::move(header->channels[id - 1]);
@@ -139,8 +121,19 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
         b2 = read_byte();
         channel.horizontalSampling = b2 >> 4;
         channel.verticalSampling = b2 & 0x0F;
+
+        if (channel.horizontalSampling < SOF0MINSAMP || channel.horizontalSampling > SOF0MAXSAMP) {
+            std::cerr << "Can not check validity of jpeg file: "
+                      << "Horizontal sampling factor has incorrect number of data units" << std::endl;
+            return false;
+        }
+        if (channel.verticalSampling < SOF0MINSAMP || channel.verticalSampling > SOF0MAXSAMP) {
+            std::cerr << "Can not check validity of jpeg file: "
+                      << "Vertical sampling factor has incorrect number of data units" << std::endl;
+            return false;
+        }
         channel.quantizationId = read_byte();
-        if (channel.quantizationId > 3) {
+        if (channel.quantizationId > DQTMI) {
             std::cerr << "Can not check validity of jpeg file: " << "Quantization table ID overflow" << std::endl;
             return false;
         }
@@ -222,8 +215,10 @@ std::unique_ptr<Header> scanHeader(const std::string& filePath) {
             }
 
         } else if (b2 == DHT) {
+            std::cout << "DHT found" << std::endl;
         } else if (b2 == SOS) {
 
+            std::cout << "SOS found" << std::endl;
         } else if (b2 == DNL) {
 
         } else if (b2 == DRI) {

@@ -11,7 +11,7 @@ struct Quantization {
     uint8_t tableId;        // between 0 and 3
     uint8_t tablePrecision; // 0 or 1
     bool completed;
-    std::array<uint16_t, 64> values;
+    std::array<uint8_t, 64> values;
 };
 
 struct Channel {
@@ -23,7 +23,7 @@ struct Channel {
 
 struct Header {
     bool isValid;
-    uint8_t type = 0x00; // Baseline
+    uint8_t type = 0xFF;
     uint16_t width;
     uint16_t height;
     uint8_t numberComponents; // 1 for grayscale or 3 for RGB
