@@ -90,14 +90,17 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
     header->width = (read_byte() << 8) | read_byte();
 
     if (u1 < 2 || header->width == 0 || header->height == 0) {
-        std::cerr << "Can not check validity of jpeg file: " << "File dim should be greater than 0" << std::endl;
+        std::cerr << "Can not check validity of jpeg file: "
+                  << "File dimension should be known, live encoding is not supported" << std::endl;
         return false;
     }
     u1 -= 2;
 
     b1 = read_byte();
-    if (u1-- < 1 || b1 != SOF0GRAY && b1 != SOF0RGB) {
-        std::cerr << "Can not check validity of jpeg file: " << "Only grayscaled and RGB image supported" << std::endl;
+    // Nf can be 0-255 but because this value is used in sof to identify comp id, we will restrict to 4 channels without
+    // repetition
+    if (u1-- < 1 || !b1 || b1 > SOF0MAXCOMP) {
+        std::cerr << "Can not check validity of jpeg file: " << "Image should have 1 to 4 channels" << std::endl;
         return false;
     }
     header->numberComponents = b1;
@@ -109,7 +112,8 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
 
     for (uint8_t ci = 0; ci < b1; ci++) {
         uint8_t id = read_byte();
-        if (id < SOF0GRAY || id > SOF0RGB) {
+        // Cid can be 0, but we will suppose that ID is always entered between 1 and 4
+        if (!id || id > SOF0MAXCOMP) {
             std::cerr << "Can not check validity of jpeg file: " << "Channel ID weirdly specified" << std::endl;
             return false;
         }
@@ -219,18 +223,17 @@ std::unique_ptr<Header> scanHeader(const std::string& filePath) {
         } else if (b2 == SOS) {
 
             std::cout << "SOS found" << std::endl;
-        } else if (b2 == DNL) {
-
         } else if (b2 == DRI) {
 
-        } else if (b2 == COM) {
-            if (!readLength(jpegFile, (read_byte() << 8) | read_byte() - 2)) {
-                return header;
-            }
         } else if (b2 == EOI) {
 
+        } else if (b2 == MARKERSTART) {
+            // Fill byte, skip...
+        } else if (!b2) {
+            std::cerr << "Can not check validity of jpeg file: " << "Marker can not be 0" << std::endl;
+            return header;
         } else {
-            std::cerr << "Marker not implemented: ";
+            std::cerr << "Can not check validity of jpeg file: " << "Marker not implemented" << std::endl;
             BYTE_TO_HEX(b2);
             std::cout << std::endl;
             return header;

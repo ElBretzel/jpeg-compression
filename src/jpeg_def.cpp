@@ -16,17 +16,14 @@ const uint8_t DQTBLOC = 0x08;
 const uint8_t SOF0 = 0xC0;
 const uint8_t SOF0BAS = 0x00;
 const uint8_t SOF0PRE = 0x08;
-const uint8_t SOF0GRAY = 0x01;
-const uint8_t SOF0RGB = 0x03;
+const uint8_t SOF0MAXCOMP = 0x04;
 const uint8_t SOF0LEN = 0x03;
 const uint8_t SOF0MINSAMP = 0x01;
 const uint8_t SOF0MAXSAMP = 0x04;
-const uint8_t SOS = 0xDA;
-const uint8_t EOI = 0xD9;
 const uint8_t DHT = 0xC4;
-const uint8_t DNL = 0xDC;
+const uint8_t SOS = 0xDA;
 const uint8_t DRI = 0xDD;
-const uint8_t COM = 0xFE;
+const uint8_t EOI = 0xD9;
 
 // See ITU-T81 Fig A.6
 const uint8_t zigZagMap[] = {0,  1,  5,  6,  14, 15, 27, 28, 2,  4,  7,  13, 16, 26, 29, 42, 3,  8,  12, 17, 25, 30,

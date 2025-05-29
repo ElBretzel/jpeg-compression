@@ -23,12 +23,12 @@ struct Channel {
 
 struct Header {
     bool isValid;
-    uint8_t type = 0xFF;
+    uint8_t type = 0xFF; // Default value to track if type has been changed
     uint16_t width;
     uint16_t height;
-    uint8_t numberComponents; // 1 for grayscale or 3 for RGB
+    uint8_t numberComponents; // 1 for grayscale or 3 for RGB, 4 for baseline complience
     std::array<Quantization, 4> tables;
-    std::array<Channel, 3> channels; // Extra channels may be empty
+    std::array<Channel, 4> channels; // Extra channels may be empty
 };
 
 std::unique_ptr<Header> scanHeader(const std::string& filePath);
