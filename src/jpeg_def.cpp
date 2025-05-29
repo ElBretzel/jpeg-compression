@@ -28,6 +28,8 @@ const uint8_t SOSSPECS = 0x00;
 const uint8_t SOSSPECE = 0x3F;
 const uint8_t SOSSUCC = 0x00;
 const uint8_t DRI = 0xDD;
+const uint8_t RST0 = 0xD0;
+const uint8_t RST7 = 0xD7;
 const uint16_t DRILEN = 0x0004;
 const uint8_t EOI = 0xD9;
 

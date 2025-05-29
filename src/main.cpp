@@ -28,12 +28,26 @@ void initBrowser() {
 }
 
 void prelude() {
-    auto filePath = "/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/gorilla.jpg";
-    auto header = scanHeader(filePath);
-    auto body = scanBody(filePath, header);
+    auto filePath = std::string("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/gorilla.jpg");
+    if (filePath.empty()) {
+        std::cerr << "Can not check validity of jpeg file: " << "path is empty" << std::endl;
+        return;
+    }
+    if (!filePath.ends_with(".jpg") && !filePath.ends_with(".jpeg")) {
+        std::cerr << "Can not check validity of jpeg file: " << "file has incorrect format" << std::endl;
+        return;
+    }
+
+    std::ifstream jpegFile(filePath, std::ios::binary);
+
+    auto header = scanHeader(jpegFile);
+    auto body = scanBody(jpegFile, header);
     header = nullptr; // Ownership moved into body
 
+    jpegFile.close();
+
     printHeader(*body->header);
+    std::cout << "Body valid: " << static_cast<bool>(body->isValid) << std::endl;
 }
 
 int main() {

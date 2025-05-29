@@ -37,6 +37,8 @@ extern const uint8_t SOSSPECS;
 extern const uint8_t SOSSPECE;
 extern const uint8_t SOSSUCC;
 extern const uint8_t DRI;
+extern const uint8_t RST0;
+extern const uint8_t RST7;
 extern const uint16_t DRILEN;
 extern const uint8_t EOI;
 

@@ -50,5 +50,5 @@ struct Header {
     std::array<HuffmanTable, 4> huffmanTable;
 };
 
-std::unique_ptr<Header> scanHeader(const std::string& filePath);
+std::unique_ptr<Header> scanHeader(std::ifstream& jpegFile);
 void printHeader(const Header& header);

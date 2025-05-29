@@ -186,7 +186,6 @@ bool fillRestart(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
     uint8_t b1;
     uint8_t b2;
     uint16_t u1;
-    uint16_t u2;
 
     u1 = (read_byte() << 8) | read_byte();
     if (u1 != DRILEN) {
@@ -217,7 +216,6 @@ bool fillDHT(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
     uint8_t b1;
     uint8_t b2;
     uint16_t u1;
-    uint16_t u2;
 
     u1 = (read_byte() << 8) | read_byte() - 2;
 
@@ -298,7 +296,6 @@ bool fillSOS(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
     uint8_t b1;
     uint8_t b2;
     uint16_t u1;
-    uint16_t u2;
 
     u1 = read_byte() << 8 | read_byte() - 2;
     if (!u1) {
@@ -372,25 +369,15 @@ bool fillSOS(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
     return true;
 }
 
-std::unique_ptr<Header> scanHeader(const std::string& filePath) {
+std::unique_ptr<Header> scanHeader(std::ifstream& jpegFile) {
     // Some utility variables
     uint8_t b1;
     uint8_t b2;
     uint16_t u1;
-    uint16_t u2;
 
     auto header = std::make_unique<Header>();
     header->isValid = false;
 
-    if (filePath.empty()) {
-        std::cerr << "Can not check validity of jpeg file: " << "path is empty" << std::endl;
-        return header;
-    }
-    if (!filePath.ends_with(".jpg") && !filePath.ends_with(".jpeg")) {
-        std::cerr << "Can not check validity of jpeg file: " << "file has incorrect format" << std::endl;
-        return header;
-    }
-    std::ifstream jpegFile(filePath, std::ios::binary);
     if (!jpegFile.is_open()) {
         std::cerr << "Can not check validity of jpeg file: " << "file can't be opened" << std::endl;
         return header;
@@ -454,7 +441,7 @@ std::unique_ptr<Header> scanHeader(const std::string& filePath) {
         } else {
             std::cerr << "Can not check validity of jpeg file: " << "Marker not implemented" << std::endl;
             BYTE_TO_HEX(b2);
-            std::cout << std::endl;
+            std::cerr << std::endl;
             return header;
         }
 
