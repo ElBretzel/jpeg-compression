@@ -1,5 +1,16 @@
 #include "jpeg_header.hpp"
 
+bool readLength(std::ifstream& jpegFile, uint16_t length) {
+    while (length--) {
+        uint8_t b = jpegFile.get();
+        if (b == EOF) {
+            std::cerr << "Can not check validity of jpeg file: " << "Read ended prematuraly" << std::endl;
+            return false;
+        }
+    }
+    return true;
+}
+
 bool fillDQT(std::ifstream& jpegFile, std::array<Quantization, 4>& tables) {
     auto read_byte = [&jpegFile]() {
         return static_cast<uint8_t>(jpegFile.get());
@@ -59,6 +70,12 @@ bool fillDQT(std::ifstream& jpegFile, std::array<Quantization, 4>& tables) {
         quant.completed = true;
         tables[quant.tableId] = quant;
     }
+
+    if (u2) {
+        std::cerr << "Can not check validity of jpeg file: "
+                  << "DQT data left" << std::endl;
+        return false;
+    }
     return true;
 }
 
@@ -110,8 +127,12 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
         return false;
     }
 
-    for (uint8_t ci = 0; ci < b1; ci++) {
+    for (int8_t ci = 0; ci < b1; ci++) {
         uint8_t id = read_byte();
+
+        if (header->appType == APPE) {
+            id += 1;
+        }
         // Cid can be 0, but we will suppose that ID is always entered between 1 and 4
         if (!id || id > SOF0MAXCOMP) {
             std::cerr << "Can not check validity of jpeg file: " << "Channel ID weirdly specified" << std::endl;
@@ -148,14 +169,115 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
     return true;
 }
 
-bool readLength(std::ifstream& jpegFile, uint16_t length) {
-    while (length--) {
-        uint8_t b = jpegFile.get();
-        if (b == EOF) {
-            std::cerr << "Can not check validity of jpeg file: " << "Read ended prematuraly" << std::endl;
+bool fillRestart(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
+    auto read_byte = [&jpegFile]() {
+        return static_cast<uint8_t>(jpegFile.get());
+    };
+
+    uint8_t b1;
+    uint8_t b2;
+    uint16_t u1;
+    uint16_t u2;
+
+    u1 = (read_byte() << 8) | read_byte();
+    if (u1 != DRILEN) {
+        std::cerr << "Can not check validity of jpeg file: " << "DRI marker has wrong size" << std::endl;
+        return false;
+    }
+
+    header->restartInterval = (read_byte() << 8) | read_byte();
+    return true;
+}
+bool fillApp(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
+
+    auto read_byte = [&jpegFile]() {
+        return static_cast<uint8_t>(jpegFile.get());
+    };
+
+    if (!readLength(jpegFile, (read_byte() << 8) | read_byte() - 2)) {
+        return false;
+    }
+    return true;
+}
+
+bool fillDHT(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
+    auto read_byte = [&jpegFile]() {
+        return static_cast<uint8_t>(jpegFile.get());
+    };
+
+    uint8_t b1;
+    uint8_t b2;
+    uint16_t u1;
+    uint16_t u2;
+
+    u1 = (read_byte() << 8) | read_byte() - 2;
+
+    while (u1) {
+        b1 = read_byte();
+        b2 = b1 >> 4;
+        b1 = b1 & 0x0F;
+        u1--;
+
+        if (b1 > DHTMHT) {
+            std::cerr << "Can not check validity of jpeg file: " << "Wrong Huffman table class" << std::endl;
             return false;
         }
+
+        if (b2 > DHTMHT) {
+            std::cerr << "Can not check validity of jpeg file: " << "Huffman table ID overflow" << std::endl;
+            return false;
+        }
+
+        HuffmanTable huffTable = std::move(header->huffmanTable[b1 * 2 + b2]);
+
+        if (huffTable.completed) {
+            std::cerr << "Can not check validity of jpeg file: " << "Huffman table values already been treated"
+                      << std::endl;
+            return false;
+        }
+
+        huffTable.tableClass = b1;
+        huffTable.identifier = b2;
+
+        uint8_t totalSymbol = 0;
+
+        for (uint8_t i = 0; i < DHTBITS; i++) {
+            HuffmanCode code;
+            code.codeLength = i + 1;
+            if (u1-- == 0) {
+                std::cerr << "Can not check validity of jpeg file: " << "DHT ended prematuraly" << std::endl;
+                return false;
+            }
+            code.symbolCount = read_byte();
+            code.huffVal.reserve(code.symbolCount);
+            totalSymbol += code.symbolCount;
+            huffTable.huffCode[i] = std::move(code);
+        }
+
+        if (u1 < totalSymbol) {
+            std::cerr << "Can not check validity of jpeg file: " << "DHT size has not enough space to store all symbols"
+                      << std::endl;
+            return false;
+        }
+
+        for (uint8_t i = 0; i < DHTBITS; i++) {
+            uint8_t symbolCount = huffTable.huffCode[i].symbolCount;
+            for (uint8_t j = 0; j < symbolCount; j++) {
+                huffTable.huffCode[i].huffVal.push_back(read_byte());
+                u1--;
+            }
+        }
+
+        huffTable.completed = true;
+        header->huffmanTable[b1 * 2 + b2] = std::move(huffTable);
     }
+
+    if (u1) {
+        std::cerr << "Can not check validity of jpeg file: "
+                  << "DHT data left" << std::endl;
+        return false;
+    }
+
     return true;
 }
 
@@ -192,15 +314,6 @@ std::unique_ptr<Header> scanHeader(const std::string& filePath) {
         return header;
     }
 
-    if (b1 = read_byte(), b2 = read_byte(); b1 != MARKERSTART || (b2 < APP0 || b2 > APPF)) {
-        std::cerr << "Can not check validity of jpeg file: " << "APP incorrect" << std::endl;
-        return header;
-    }
-
-    if (!readLength(jpegFile, (read_byte() << 8) | read_byte() - 2)) {
-        return header;
-    }
-
     do {
         if (read_byte() != MARKERSTART) {
             std::cerr << "Can not check validity of jpeg file: " << "Marker not present" << std::endl;
@@ -209,7 +322,14 @@ std::unique_ptr<Header> scanHeader(const std::string& filePath) {
 
         b2 = jpegFile.get();
 
-        if (b2 == DQT) {
+        if (b2 >= APP0 && b2 <= APPF) {
+            header->appType = b2;
+            if (!fillApp(jpegFile, header)) {
+                return header;
+            }
+        }
+
+        else if (b2 == DQT) {
             if (!fillDQT(jpegFile, header->tables)) {
                 return header;
             }
@@ -219,11 +339,16 @@ std::unique_ptr<Header> scanHeader(const std::string& filePath) {
             }
 
         } else if (b2 == DHT) {
-            std::cout << "DHT found" << std::endl;
+            if (!fillDHT(jpegFile, header)) {
+                return header;
+            }
         } else if (b2 == SOS) {
 
             std::cout << "SOS found" << std::endl;
         } else if (b2 == DRI) {
+            if (!fillRestart(jpegFile, header)) {
+                return header;
+            }
 
         } else if (b2 == EOI) {
 
@@ -245,10 +370,8 @@ std::unique_ptr<Header> scanHeader(const std::string& filePath) {
     return header;
 }
 
-void printHeader(const Header& header) {
-    std::cout << "Header valid: " << header.isValid << std::endl;
+void printDQTTable(const Header& header) {
     std::cout << "======= DQT TABLE ========" << std::endl;
-
     for (uint8_t i = 0; i < DQTMI + 1; i++) {
         if (!header.tables[i].completed) {
             continue;
@@ -262,19 +385,62 @@ void printHeader(const Header& header) {
         }
         std::cout << std::endl;
     }
+}
 
+void printSOFTable(const Header& header) {
     std::cout << "======= SOF TABLE ========" << std::endl;
+    std::cout << "Image convention type: ";
+    BYTE_TO_HEX(header.appType);
+    std::cout << std::endl;
     std::cout << "Image width: " << header.width << std::endl;
     std::cout << "Image height: " << header.height << std::endl;
     std::cout << "Image type: 0x";
     BYTE_TO_HEX(header.type);
     std::cout << std::endl;
     std::cout << "Number of channels: " << static_cast<int>(header.numberComponents) << std::endl;
-    for (auto i = 0; i < header.numberComponents; i++) {
+
+    for (int i = 0; i < header.numberComponents; ++i) {
+        const auto& ch = header.channels[i];
         std::cout << "Channel ID: " << i << std::endl;
-        std::cout << "Completed: " << header.channels[i].completed << std::endl;
-        std::cout << "Horizontal sampling: " << static_cast<int>(header.channels[i].horizontalSampling) << std::endl;
-        std::cout << "Vertical sampling: " << static_cast<int>(header.channels[i].verticalSampling) << std::endl;
-        std::cout << "Quantization table ID: " << static_cast<int>(header.channels[i].quantizationId) << std::endl;
+        std::cout << "  Completed: " << ch.completed << std::endl;
+        std::cout << "  Horizontal sampling: " << static_cast<int>(ch.horizontalSampling) << std::endl;
+        std::cout << "  Vertical sampling: " << static_cast<int>(ch.verticalSampling) << std::endl;
+        std::cout << "  Quantization table ID: " << static_cast<int>(ch.quantizationId) << std::endl;
     }
+}
+
+void printDRITable(const Header& header) {
+    std::cout << "======= DRI TABLE ========" << std::endl;
+    std::cout << "Restart interval: " << static_cast<int>(header.restartInterval) << std::endl;
+}
+
+void printDHTTable(const Header& header) {
+    std::cout << "======= DHT TABLE ========" << std::endl;
+    for (const auto& table : header.huffmanTable) {
+        std::cout << "Table class: " << static_cast<int>(table.tableClass) << std::endl;
+        std::cout << "Table class ID: " << static_cast<int>(table.identifier) << std::endl;
+        std::cout << "Table completed: " << table.completed << std::endl;
+
+        std::cout << "HUFFSIZE: { ";
+        for (const auto& code : table.huffCode) {
+            std::cout << static_cast<int>(code.symbolCount) << ", ";
+        }
+        std::cout << "}" << std::endl;
+        std::cout << "HUFFVAL: {";
+        for (const auto& code : table.huffCode) {
+            std::cout << "[";
+            for (const auto val : code.huffVal) {
+                BYTE_TO_HEX(val);
+            }
+            std::cout << "]; ";
+        }
+    }
+}
+
+void printHeader(const Header& header) {
+    std::cout << "Header valid: " << header.isValid << std::endl;
+    printDQTTable(header);
+    printSOFTable(header);
+    printDRITable(header);
+    printDHTTable(header);
 }

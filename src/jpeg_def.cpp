@@ -7,6 +7,7 @@
 const uint8_t MARKERSTART = 0xFF;
 const uint8_t SOI = 0xD8;
 const uint8_t APP0 = 0xE0;
+const uint8_t APPE = 0xEE;
 const uint8_t APPF = 0xEF;
 const uint8_t DQT = 0xDB;
 const uint8_t DQTMI = 0x03;
@@ -21,8 +22,11 @@ const uint8_t SOF0LEN = 0x03;
 const uint8_t SOF0MINSAMP = 0x01;
 const uint8_t SOF0MAXSAMP = 0x04;
 const uint8_t DHT = 0xC4;
+const uint8_t DHTMHT = 0x01;
+const uint8_t DHTBITS = 0x10;
 const uint8_t SOS = 0xDA;
 const uint8_t DRI = 0xDD;
+const uint16_t DRILEN = 0x0004;
 const uint8_t EOI = 0xD9;
 
 // See ITU-T81 Fig A.6

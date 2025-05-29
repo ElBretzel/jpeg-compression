@@ -16,6 +16,7 @@
 extern const uint8_t MARKERSTART;
 extern const uint8_t SOI;
 extern const uint8_t APP0;
+extern const uint8_t APPE; // Photoshop (and Adobe) may influence color channel id mapping
 extern const uint8_t APPF;
 extern const uint8_t DQT;
 extern const uint8_t DQTMP;
@@ -30,8 +31,11 @@ extern const uint8_t SOF0LEN;
 extern const uint8_t SOF0MINSAMP;
 extern const uint8_t SOF0MAXSAMP;
 extern const uint8_t DHT;
+extern const uint8_t DHTMHT;
+extern const uint8_t DHTBITS;
 extern const uint8_t SOS;
 extern const uint8_t DRI;
+extern const uint16_t DRILEN;
 extern const uint8_t EOI;
 
 extern const uint8_t zigZagMap[];

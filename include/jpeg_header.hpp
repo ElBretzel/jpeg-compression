@@ -6,11 +6,12 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <vector>
 
 struct Quantization {
     uint8_t tableId;        // between 0 and 3
     uint8_t tablePrecision; // 0 or 1
-    bool completed;
+    bool completed = false;
     std::array<uint8_t, 64> values;
 };
 
@@ -18,17 +19,33 @@ struct Channel {
     uint8_t horizontalSampling; // between 1 and 4
     uint8_t verticalSampling;   // between 1 and 4
     uint8_t quantizationId;     // between 0 and 3
-    bool completed;
+    bool completed = false;
+};
+
+struct HuffmanCode {
+    uint8_t codeLength;
+    uint8_t symbolCount;
+    std::vector<uint8_t> huffVal; // huffVal vector has codeLength memory space reserved
+};
+
+struct HuffmanTable {
+    uint8_t tableClass; // 0 or 1
+    uint8_t identifier; // 0 or 1
+    bool completed = false;
+    std::array<HuffmanCode, 16> huffCode;
 };
 
 struct Header {
     bool isValid;
     uint8_t type = 0xFF; // Default value to track if type has been changed
+    uint8_t appType;
     uint16_t width;
     uint16_t height;
     uint8_t numberComponents; // 1 for grayscale or 3 for RGB, 4 for baseline complience
+    uint16_t restartInterval;
     std::array<Quantization, 4> tables;
     std::array<Channel, 4> channels; // Extra channels may be empty
+    std::array<HuffmanTable, 4> huffmanTable;
 };
 
 std::unique_ptr<Header> scanHeader(const std::string& filePath);
