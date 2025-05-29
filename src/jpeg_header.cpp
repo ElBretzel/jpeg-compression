@@ -500,6 +500,8 @@ void printSOFTable(const Header& header) {
         std::cout << "  Horizontal sampling: " << static_cast<int>(ch.horizontalSampling) << std::endl;
         std::cout << "  Vertical sampling: " << static_cast<int>(ch.verticalSampling) << std::endl;
         std::cout << "  Quantization table ID: " << static_cast<int>(ch.quantizationId) << std::endl;
+        std::cout << "  AC Huffman table ID: " << static_cast<int>(ch.huffACId) << std::endl;
+        std::cout << "  DC Huffman table ID: " << static_cast<int>(ch.huffDCId) << std::endl;
     }
 }
 
