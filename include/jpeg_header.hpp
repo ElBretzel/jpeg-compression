@@ -24,17 +24,18 @@ struct Channel {
     bool completed = false;
 };
 
-struct HuffmanCode {
+struct HuffmanData {
     uint8_t codeLength;
     uint8_t symbolCount;
-    std::vector<uint8_t> huffVal; // huffVal vector has codeLength memory space reserved
+    std::vector<uint16_t> huffCode; // huffCode vector has symbolCount memory space reserved
+    std::vector<uint8_t> huffVal;   // huffVal vector has symbolCount memory space reserved
 };
 
 struct HuffmanTable {
     uint8_t tableClass; // 0 or 1
     uint8_t identifier; // 0 or 1
     bool completed = false;
-    std::array<HuffmanCode, 16> huffCode;
+    std::array<HuffmanData, 16> huffData;
 };
 
 struct Header {
@@ -45,7 +46,7 @@ struct Header {
     uint16_t height;
     uint8_t numberComponents; // 1 for grayscale or 3 for RGB, 4 for baseline complience
     uint16_t restartInterval;
-    std::array<Quantization, 4> tables;
+    std::array<Quantization, 4> quantTable;
     std::array<Channel, 4> channels; // Extra channels may be empty
     std::array<HuffmanTable, 4> huffmanTable;
 };

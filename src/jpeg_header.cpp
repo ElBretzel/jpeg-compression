@@ -249,7 +249,7 @@ bool fillDHT(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
         uint8_t totalSymbol = 0;
 
         for (uint8_t i = 0; i < DHTBITS; i++) {
-            HuffmanCode code;
+            HuffmanData code;
             code.codeLength = i + 1;
             if (u1-- == 0) {
                 std::cerr << "Can not check validity of jpeg file: " << "DHT ended prematuraly" << std::endl;
@@ -257,8 +257,9 @@ bool fillDHT(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
             }
             code.symbolCount = read_byte();
             code.huffVal.reserve(code.symbolCount);
+            code.huffCode.reserve(code.symbolCount);
             totalSymbol += code.symbolCount;
-            huffTable.huffCode[i] = std::move(code);
+            huffTable.huffData[i] = std::move(code);
         }
 
         if (u1 < totalSymbol) {
@@ -268,9 +269,10 @@ bool fillDHT(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
         }
 
         for (uint8_t i = 0; i < DHTBITS; i++) {
-            uint8_t symbolCount = huffTable.huffCode[i].symbolCount;
+            uint8_t symbolCount = huffTable.huffData[i].symbolCount;
+            // Maybe add additional check for Huffman entropy coding (bit overflow)
             for (uint8_t j = 0; j < symbolCount; j++) {
-                huffTable.huffCode[i].huffVal.push_back(read_byte());
+                huffTable.huffData[i].huffVal.push_back(read_byte());
                 u1--;
             }
         }
@@ -408,7 +410,7 @@ std::unique_ptr<Header> scanHeader(std::ifstream& jpegFile) {
         }
 
         else if (b2 == DQT) {
-            if (!fillDQT(jpegFile, header->tables)) {
+            if (!fillDQT(jpegFile, header->quantTable)) {
                 return header;
             }
         } else if (b2 == SOF0) {
@@ -454,7 +456,7 @@ std::unique_ptr<Header> scanHeader(std::ifstream& jpegFile) {
 void printDQTTable(const Header& header) {
     std::cout << "======= DQT TABLE ========" << std::endl;
     for (uint8_t i = 0; i < DQTMI + 1; i++) {
-        if (!header.tables[i].completed) {
+        if (!header.quantTable[i].completed) {
             continue;
         }
         std::cout << "| TABLE ID: " << static_cast<int>(i);
@@ -462,7 +464,7 @@ void printDQTTable(const Header& header) {
             if (j % DQTBLOC == 0) {
                 std::cout << std::endl;
             }
-            BYTE_TO_HEX(static_cast<uint8_t>(header.tables[i].values[j]));
+            BYTE_TO_HEX(static_cast<uint8_t>(header.quantTable[i].values[j]));
         }
         std::cout << std::endl;
     }
@@ -504,16 +506,28 @@ void printDHTTable(const Header& header) {
         std::cout << "Table class ID: " << static_cast<int>(table.identifier) << std::endl;
         std::cout << "Table completed: " << table.completed << std::endl;
 
-        std::cout << "HUFFSIZE: { ";
-        for (const auto& code : table.huffCode) {
+        std::cout << "BITS: { ";
+        for (const auto& code : table.huffData) {
             std::cout << static_cast<int>(code.symbolCount) << ", ";
         }
         std::cout << "}" << std::endl;
         std::cout << "HUFFVAL: {";
-        for (const auto& code : table.huffCode) {
+        for (const auto& code : table.huffData) {
             std::cout << "[";
             for (const auto val : code.huffVal) {
                 BYTE_TO_HEX(val);
+            }
+            std::cout << "]; ";
+        }
+        std::cout << "}" << std::endl;
+        std::cout << "HUFFSIZE: {";
+        for (const auto& code : table.huffData) {
+            if (!code.symbolCount) {
+                continue;
+            }
+            std::cout << "[";
+            for (auto j = 0; j < code.symbolCount; j++) {
+                std::cout << static_cast<int>(code.codeLength) << " ";
             }
             std::cout << "]; ";
         }

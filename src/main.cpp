@@ -2,6 +2,7 @@
 #include "frame_counter.hpp"
 #include "sprite_handler.hpp"
 
+#include "decode_huffman.hpp"
 #include "jpeg_body.hpp"
 #include "jpeg_header.hpp"
 
@@ -28,7 +29,7 @@ void initBrowser() {
 }
 
 void prelude() {
-    auto filePath = std::string("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/gorilla.jpg");
+    auto filePath = std::string("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/4.1.04.jpg");
     if (filePath.empty()) {
         std::cerr << "Can not check validity of jpeg file: " << "path is empty" << std::endl;
         return;
@@ -43,11 +44,15 @@ void prelude() {
     auto header = scanHeader(jpegFile);
     auto body = scanBody(jpegFile, header);
     header = nullptr; // Ownership moved into body
-
     jpegFile.close();
+    decodeHuffman(body);
+    // Dequantize
+    // IDCT
+    // IRGB
+    // Profit
 
-    printHeader(*body->header);
-    std::cout << "Body valid: " << static_cast<bool>(body->isValid) << std::endl;
+    // printHeader(*body->header);
+    // std::cout << "Body valid: " << static_cast<bool>(body->isValid) << std::endl;
 }
 
 int main() {

@@ -31,7 +31,7 @@ std::unique_ptr<Body> scanBody(std::ifstream& jpegFile, std::unique_ptr<Header>&
                 b1 = read_byte();
             } else if (b1 == MARKERSTART) {
             } else if (!b1) {
-                body->data.push_back(b2);
+                body->data.addByte(b2);
                 b1 = read_byte();
             } else {
                 std::cerr << "Body error: " << "data invalid marker: ";
@@ -40,7 +40,7 @@ std::unique_ptr<Body> scanBody(std::ifstream& jpegFile, std::unique_ptr<Header>&
                 return body;
             }
         } else {
-            body->data.push_back(b2);
+            body->data.addByte(b2);
         }
     }
 
