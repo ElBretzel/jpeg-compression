@@ -12,7 +12,7 @@ const uint8_t APPF = 0xEF;
 const uint8_t DQT = 0xDB;
 const uint8_t DQTMI = 0x03;
 const uint8_t DQTMP = 0x01;
-const uint8_t DQTVAL = 0x40;
+const uint8_t MCUX = 0x40;
 const uint8_t DQTBLOC = 0x08;
 const uint8_t SOF0 = 0xC0;
 const uint8_t SOF0BAS = 0x00;
@@ -32,6 +32,8 @@ const uint8_t RST0 = 0xD0;
 const uint8_t RST7 = 0xD7;
 const uint16_t DRILEN = 0x0004;
 const uint8_t EOI = 0xD9;
+const uint8_t EOB = 0x00;
+const uint8_t ZLR = 0x0F;
 
 // See ITU-T81 Fig A.6
 const uint8_t zigZagMap[] = {0,  1,  5,  6,  14, 15, 27, 28, 2,  4,  7,  13, 16, 26, 29, 42, 3,  8,  12, 17, 25, 30,

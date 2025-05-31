@@ -52,7 +52,7 @@ void prelude() {
     // Profit
 
     // printHeader(*body->header);
-    // std::cout << "Body valid: " << static_cast<bool>(body->isValid) << std::endl;
+    //  std::cout << "Body valid: " << static_cast<bool>(body->isValid) << std::endl;
 }
 
 int main() {

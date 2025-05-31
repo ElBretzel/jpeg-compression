@@ -4,6 +4,8 @@
 #include <iostream>
 #include <vector>
 
+#include "jpeg_def.hpp"
+
 struct Cursor {
     uint8_t bitPos = 0;
     std::size_t bytePos = 0;

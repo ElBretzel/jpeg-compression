@@ -21,7 +21,7 @@ extern const uint8_t APPF;
 extern const uint8_t DQT;
 extern const uint8_t DQTMP;
 extern const uint8_t DQTMI;
-extern const uint8_t DQTVAL;
+extern const uint8_t MCUX;
 extern const uint8_t DQTBLOC;
 extern const uint8_t SOF0;
 extern const uint8_t SOF0BAS;
@@ -41,6 +41,8 @@ extern const uint8_t RST0;
 extern const uint8_t RST7;
 extern const uint16_t DRILEN;
 extern const uint8_t EOI;
+extern const uint8_t EOB;
+extern const uint8_t ZLR;
 
 extern const uint8_t zigZagMap[];
 extern const uint8_t reverseZigZagMap[];

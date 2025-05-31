@@ -43,6 +43,107 @@ bool fillDecodeTable(const HuffmanTable& table, HuffmanDecodeTable& decodeTable)
     return true;
 }
 
+uint8_t decodeSymbol(JpegDataStream& stream, const HuffmanDecodeTable& decodeTable) {
+
+    uint16_t code = 0;
+    // codeLength is shifted by 1
+    for (uint8_t codeLength = 0; codeLength < DHTBITS; codeLength++) {
+        uint8_t b = stream.readBit();
+        if (b == 0xFF) {
+            return 0xFF;
+        }
+        code = (code << 1) | b;
+        auto it = decodeTable[codeLength].find(code);
+        if (it != decodeTable[codeLength].end()) {
+            return it->second;
+        }
+    }
+
+    return 0xFF;
+}
+
+bool getACDCSymbol(JpegDataStream& stream, int16_t& symbol, const uint8_t length) {
+
+    uint16_t s = stream.readBits(length);
+    if (s == 0xFFFF) {
+        return false;
+    }
+    // Signed decoding >>>> Leftmost half is negative, Rightmost half is positive
+    // Leftmost half
+    if (s < (1 << (length - 1))) {
+        // (1 << dcLength) - 1 == 2^length starting from 0
+        // so we shift in negative our s
+        symbol = s - ((1 << length) - 1);
+    }
+    // Rightmost half
+    else {
+        symbol = s;
+    }
+
+    return true;
+}
+
+bool decodeMCU(JpegDataStream& stream, MCUComponents& mcu, const HuffmanDecodeTable& dc, const HuffmanDecodeTable& ac,
+               int16_t& previousDC) {
+
+    // DC decoding
+    uint8_t dcLength = decodeSymbol(stream, dc);
+    if (dcLength == 0xFF) {
+        std::cerr << "Decode error: DC decoding sequence corrupted" << std::endl;
+        return false;
+    }
+
+    int16_t dcSymbol = 0;
+    if (dcLength > 0) {
+        if (!getACDCSymbol(stream, dcSymbol, dcLength)) {
+            return false;
+        }
+    }
+
+    mcu[zigZagMap[0]] = dcSymbol + previousDC;
+    previousDC = mcu[zigZagMap[0]];
+
+    // AC decoding
+    uint8_t i = 1;
+    while (i < MCUX) {
+        uint8_t acInfo = decodeSymbol(stream, ac);
+        if (acInfo == 0xFF) {
+            return false;
+        }
+
+        // acInfo = 0x02|08
+
+        uint8_t paddingZero = acInfo >> 4;
+        uint8_t acLength = acInfo & 0x0F;
+
+        i += paddingZero;
+        if (i > MCUX) {
+            std::cerr << "Decode error: AC decoding MCU subpart overflow" << std::endl;
+            return false;
+        }
+
+        int16_t acSymbol = 0;
+
+        if (acLength > 0) {
+            if (!getACDCSymbol(stream, acSymbol, acLength)) {
+                return false;
+            }
+        } else {
+            if (paddingZero == ZLR) {
+                continue;
+            } else if (paddingZero == EOB) {
+                break;
+            }
+            std::cerr << "Decode error: Corrupted AC byte sequence" << std::endl;
+            return false;
+        }
+
+        mcu[zigZagMap[i]] = acSymbol;
+        i++;
+    }
+    return true;
+}
+
 bool decodeHuffman(std::unique_ptr<Body>& body) {
     if (!generateCode(body)) {
         return false;
@@ -61,6 +162,20 @@ bool decodeHuffman(std::unique_ptr<Body>& body) {
             return false;
         }
     }
+
+    auto mcus = std::move(body->mcu);
+    int16_t previousDC = 0;
+    for (std::size_t i = 0; i < mcus->mcuWidth * mcus->mcuHeight; i++) {
+        auto mcuData = mcus->mcuData[i];
+        for (uint8_t j = 0; j < body->header->numberComponents; j++) {
+            if (!decodeMCU(body->data, mcuData[j], decodeTables[body->header->channels[j].huffDCId],
+                           decodeTables[body->header->channels[j].huffACId + 2], previousDC)) {
+                return false;
+            }
+        }
+    }
+
+    body->mcu = std::move(mcus);
 
     return true;
 }

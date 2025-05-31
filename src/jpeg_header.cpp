@@ -49,7 +49,7 @@ bool fillDQT(std::ifstream& jpegFile, std::array<Quantization, 4>& tables) {
         }
 
         uint8_t i = 0;
-        while (i < DQTVAL) {
+        while (i < MCUX) {
             b1 = read_byte();
             if (b1 == EOF) {
                 std::cerr << "Can not check validity of jpeg file: " << "DQT ended prematuraly" << std::endl;
@@ -57,7 +57,7 @@ bool fillDQT(std::ifstream& jpegFile, std::array<Quantization, 4>& tables) {
             }
             quant.values[reverseZigZagMap[i]] = b1;
             i++;
-            if (u1 == 0 && i < DQTVAL) {
+            if (u1 == 0 && i < MCUX) {
                 std::cerr << "Can not check validity of jpeg file: "
                           << "Quantization tables length invalid, terminated early" << std::endl;
                 return false;
@@ -460,7 +460,7 @@ void printDQTTable(const Header& header) {
             continue;
         }
         std::cout << "| TABLE ID: " << static_cast<int>(i);
-        for (uint8_t j = 0; j < DQTVAL; j++) {
+        for (uint8_t j = 0; j < MCUX; j++) {
             if (j % DQTBLOC == 0) {
                 std::cout << std::endl;
             }

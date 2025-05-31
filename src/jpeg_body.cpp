@@ -9,6 +9,17 @@ std::unique_ptr<Body> scanBody(std::ifstream& jpegFile, std::unique_ptr<Header>&
         return body;
     }
 
+    auto mcu = std::make_unique<MCU>();
+    mcu->mcuWidth = (body->header->width + 7) / 8;
+    mcu->mcuHeight = (body->header->height + 7) / 8;
+    mcu->mcuData.resize(mcu->mcuWidth * mcu->mcuHeight);
+    for (auto& mcuData : mcu->mcuData) {
+        for (auto i = 0; i < body->header->numberComponents; i++) {
+            mcuData[i].fill(0);
+        }
+    }
+    body->mcu = std::move(mcu);
+
     auto read_byte = [&jpegFile]() {
         return static_cast<uint8_t>(jpegFile.get());
     };
