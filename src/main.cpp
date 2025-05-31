@@ -28,8 +28,52 @@ void initBrowser() {
     fileBrowser.setFilters({".ppm", ".bmp", ".jpg"});
 }
 
+void writePPM(std::unique_ptr<Body>& image, const std::string& filename) {
+    if (!image || !image->header || !image->mcu || !image->isValid || !image->mcu->isValid) {
+        std::cout << "Error - Invalid image data\n";
+        return;
+    }
+
+    std::cout << "Writing " << filename << "...\n";
+
+    std::ofstream outFile(filename, std::ios::out | std::ios::binary);
+    if (!outFile.is_open()) {
+        std::cout << "Error - Could not open output file\n";
+        return;
+    }
+
+    const uint16_t width = image->header->width;
+    const uint16_t height = image->header->height;
+
+    // PPM header
+    outFile << "P6\n" << width << " " << height << "\n255\n";
+
+    for (uint y = 0; y < height; ++y) {
+        const uint mcuRow = y / 8;
+        const uint pixelRow = y % 8;
+        for (uint x = 0; x < width; ++x) {
+            const uint mcuColumn = x / 8;
+            const uint pixelColumn = x % 8;
+            const uint mcuIndex = mcuRow * image->mcu->mcuWidth + mcuColumn;
+            const uint pixelIndex = pixelRow * 8 + pixelColumn;
+
+            // Assuming MCUData[0] = Y, [1] = Cb, [2] = Cr and [3] = RGB (after color conversion)
+            const uint8_t r = image->mcu->mcuData[mcuIndex][1][pixelIndex];
+            const uint8_t g = image->mcu->mcuData[mcuIndex][2][pixelIndex];
+            const uint8_t b = image->mcu->mcuData[mcuIndex][3][pixelIndex];
+
+            outFile.put(r);
+            outFile.put(g);
+            outFile.put(b);
+        }
+    }
+
+    outFile.close();
+    std::cout << "PPM file written successfully.\n";
+}
+
 void prelude() {
-    auto filePath = std::string("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/4.1.04.jpg");
+    auto filePath = std::string("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/cat.jpg");
     if (filePath.empty()) {
         std::cerr << "Can not check validity of jpeg file: " << "path is empty" << std::endl;
         return;
@@ -51,8 +95,10 @@ void prelude() {
     // IRGB
     // Profit
 
-    // printHeader(*body->header);
-    //  std::cout << "Body valid: " << static_cast<bool>(body->isValid) << std::endl;
+    printHeader(*body->header);
+    std::cout << "Body valid: " << static_cast<bool>(body->isValid) << std::endl;
+    std::cout << "MCU valid: " << static_cast<bool>(body->mcu->isValid) << std::endl;
+    writePPM(body, "/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/out.ppm");
 }
 
 int main() {

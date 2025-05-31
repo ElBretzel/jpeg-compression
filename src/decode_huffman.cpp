@@ -9,9 +9,10 @@ bool generateCode(std::unique_ptr<Body>& body) {
                 code <<= 1;
                 continue;
             }
+
             if (data.symbolCount > (1 << data.codeLength)) {
-                std::cerr << "Can not generate code: " << "There is too many symbols to generate code of fixed length"
-                          << std::endl;
+                std::cerr << "Can not generate code: "
+                          << "There is too many symbols to generate code of fixed length" << std::endl;
                 return false;
             }
             for (uint8_t i = 0; i < data.symbolCount; i++) {
@@ -59,6 +60,7 @@ uint8_t decodeSymbol(JpegDataStream& stream, const HuffmanDecodeTable& decodeTab
         }
     }
 
+    std::cerr << "Decode symbol error: Code not found in the decode table..." << std::endl;
     return 0xFF;
 }
 
@@ -100,8 +102,8 @@ bool decodeMCU(JpegDataStream& stream, MCUComponents& mcu, const HuffmanDecodeTa
         }
     }
 
-    mcu[zigZagMap[0]] = dcSymbol + previousDC;
-    previousDC = mcu[zigZagMap[0]];
+    mcu[reverseZigZagMap[0]] = dcSymbol + previousDC;
+    previousDC = mcu[reverseZigZagMap[0]];
 
     // AC decoding
     uint8_t i = 1;
@@ -110,8 +112,6 @@ bool decodeMCU(JpegDataStream& stream, MCUComponents& mcu, const HuffmanDecodeTa
         if (acInfo == 0xFF) {
             return false;
         }
-
-        // acInfo = 0x02|08
 
         uint8_t paddingZero = acInfo >> 4;
         uint8_t acLength = acInfo & 0x0F;
@@ -138,7 +138,7 @@ bool decodeMCU(JpegDataStream& stream, MCUComponents& mcu, const HuffmanDecodeTa
             return false;
         }
 
-        mcu[zigZagMap[i]] = acSymbol;
+        mcu[reverseZigZagMap[i]] = acSymbol;
         i++;
     }
     return true;
@@ -164,17 +164,25 @@ bool decodeHuffman(std::unique_ptr<Body>& body) {
     }
 
     auto mcus = std::move(body->mcu);
-    int16_t previousDC = 0;
+
+    std::array<int16_t, 4> previousDC{};
     for (std::size_t i = 0; i < mcus->mcuWidth * mcus->mcuHeight; i++) {
-        auto mcuData = mcus->mcuData[i];
+
+        if (body->header->restartInterval != 0 && i % body->header->restartInterval == 0) {
+            previousDC.fill(0);
+            body->data.align();
+        }
+        auto& mcuData = mcus->mcuData[i];
         for (uint8_t j = 0; j < body->header->numberComponents; j++) {
             if (!decodeMCU(body->data, mcuData[j], decodeTables[body->header->channels[j].huffDCId],
-                           decodeTables[body->header->channels[j].huffACId + 2], previousDC)) {
+                           decodeTables[body->header->channels[j].huffACId + 2], previousDC[j])) {
+                std::cerr << "Huffman decoding error. Stopping early." << std::endl;
                 return false;
             }
         }
     }
 
+    mcus->isValid = true;
     body->mcu = std::move(mcus);
 
     return true;

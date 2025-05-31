@@ -235,7 +235,7 @@ bool fillDHT(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
             return false;
         }
 
-        HuffmanTable huffTable = std::move(header->huffmanTable[b1 * 2 + b2]);
+        HuffmanTable huffTable = std::move(header->huffmanTable[b2 * 2 + b1]);
 
         if (huffTable.completed) {
             std::cerr << "Can not check validity of jpeg file: " << "Huffman table values already been treated"
@@ -243,8 +243,8 @@ bool fillDHT(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
             return false;
         }
 
-        huffTable.tableClass = b1;
-        huffTable.identifier = b2;
+        huffTable.tableClass = b2;
+        huffTable.identifier = b1;
 
         uint8_t totalSymbol = 0;
 
@@ -278,7 +278,7 @@ bool fillDHT(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
         }
 
         huffTable.completed = true;
-        header->huffmanTable[b1 * 2 + b2] = std::move(huffTable);
+        header->huffmanTable[b2 * 2 + b1] = std::move(huffTable);
     }
 
     if (u1) {

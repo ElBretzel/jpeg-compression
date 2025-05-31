@@ -9,8 +9,9 @@ using MCUData = std::array<MCUComponents, 4>;
 struct MCU {
     std::size_t mcuWidth;
     std::size_t mcuHeight;
-    std::vector<MCUData> mcuData;
     const std::uint8_t size = 8;
+    bool isValid = false;
+    std::vector<MCUData> mcuData;
 };
 
 struct Body {

@@ -51,11 +51,11 @@ uint8_t JpegDataStream::peekByte() const {
             return 0xFF;
         }
         uint8_t b1 = data[bytePos];
-        uint8_t b2 = (b1 << (7 - bitPos)) & 1;
+        uint8_t b2 = (b1 >> (7 - bitPos)) & 1;
 
         u1 = (u1 << 1) | b2;
         bitPos++;
-        if (bitPos = 8) {
+        if (bitPos == 8) {
             bitPos = 0;
             bytePos++;
         }
