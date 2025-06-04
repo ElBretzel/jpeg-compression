@@ -116,20 +116,10 @@ bool decodeMCU(JpegDataStream& stream, MCUComponents& mcu, const HuffmanDecodeTa
         uint8_t paddingZero = acInfo >> 4;
         uint8_t acLength = acInfo & 0x0F;
 
-        i += paddingZero;
-        if (i > MCUX) {
-            std::cerr << "Decode error: AC decoding MCU subpart overflow" << std::endl;
-            return false;
-        }
-
-        int16_t acSymbol = 0;
-
-        if (acLength > 0) {
-            if (!getACDCSymbol(stream, acSymbol, acLength)) {
-                return false;
-            }
-        } else {
+        if (acLength == 0) {
             if (paddingZero == ZLR) {
+                // Avoid under skipping 1 bit
+                i += 16;
                 continue;
             } else if (paddingZero == EOB) {
                 break;
@@ -138,9 +128,27 @@ bool decodeMCU(JpegDataStream& stream, MCUComponents& mcu, const HuffmanDecodeTa
             return false;
         }
 
+        i += paddingZero;
+        if (i >= MCUX) {
+            std::cerr << "Decode error: AC decoding MCU subpart overflow" << std::endl;
+            return false;
+        }
+
+        int16_t acSymbol = 0;
+        if (!getACDCSymbol(stream, acSymbol, acLength)) {
+            return false;
+        }
+
         mcu[reverseZigZagMap[i]] = acSymbol;
         i++;
     }
+
+    // Because of underskip logic, we check overrun a second time
+    if (i > MCUX) {
+        std::cerr << "Decode error: AC decoding MCU subpart overflow" << std::endl;
+        return false;
+    }
+
     return true;
 }
 
@@ -156,6 +164,9 @@ bool decodeHuffman(std::unique_ptr<Body>& body) {
         if (table.tableClass > 1 || table.identifier > 1) {
             std::cerr << "Decode error: number of class and identifier in DHT not supported" << std::endl;
             return false;
+        }
+        if (!table.completed) {
+            continue;
         }
         HuffmanDecodeTable& decodeTable = decodeTables[table.tableClass * 2 + table.identifier];
         if (!fillDecodeTable(table, decodeTable)) {
@@ -176,6 +187,7 @@ bool decodeHuffman(std::unique_ptr<Body>& body) {
         for (uint8_t j = 0; j < body->header->numberComponents; j++) {
             if (!decodeMCU(body->data, mcuData[j], decodeTables[body->header->channels[j].huffDCId],
                            decodeTables[body->header->channels[j].huffACId + 2], previousDC[j])) {
+                body->mcu = std::move(mcus);
                 std::cerr << "Huffman decoding error. Stopping early." << std::endl;
                 return false;
             }

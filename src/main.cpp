@@ -58,9 +58,22 @@ void writePPM(std::unique_ptr<Body>& image, const std::string& filename) {
             const uint pixelIndex = pixelRow * 8 + pixelColumn;
 
             // Assuming MCUData[0] = Y, [1] = Cb, [2] = Cr and [3] = RGB (after color conversion)
-            const uint8_t r = image->mcu->mcuData[mcuIndex][1][pixelIndex];
-            const uint8_t g = image->mcu->mcuData[mcuIndex][2][pixelIndex];
-            const uint8_t b = image->mcu->mcuData[mcuIndex][3][pixelIndex];
+            uint8_t r, g, b;
+            switch (image->header->numberComponents) {
+            case 1:
+                r = image->mcu->mcuData[mcuIndex][0][pixelIndex];
+                g = image->mcu->mcuData[mcuIndex][0][pixelIndex];
+                b = image->mcu->mcuData[mcuIndex][0][pixelIndex];
+                break;
+            case 3:
+                r = image->mcu->mcuData[mcuIndex][0][pixelIndex];
+                g = image->mcu->mcuData[mcuIndex][1][pixelIndex];
+                b = image->mcu->mcuData[mcuIndex][2][pixelIndex];
+                break;
+            default:
+                std::cerr << "Only 1 or 3 channels supported" << std::abort;
+                return;
+            }
 
             outFile.put(r);
             outFile.put(g);
@@ -73,7 +86,7 @@ void writePPM(std::unique_ptr<Body>& image, const std::string& filename) {
 }
 
 void prelude() {
-    auto filePath = std::string("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/cat.jpg");
+    auto filePath = std::string("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/turtle.jpg");
     if (filePath.empty()) {
         std::cerr << "Can not check validity of jpeg file: " << "path is empty" << std::endl;
         return;
@@ -90,10 +103,10 @@ void prelude() {
     header = nullptr; // Ownership moved into body
     jpegFile.close();
     decodeHuffman(body);
-    // Dequantize
-    // IDCT
-    // IRGB
-    // Profit
+    //  Dequantize
+    //  IDCT
+    //  IRGB
+    //  Profit
 
     printHeader(*body->header);
     std::cout << "Body valid: " << static_cast<bool>(body->isValid) << std::endl;
