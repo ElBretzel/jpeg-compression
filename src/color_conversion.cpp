@@ -18,11 +18,7 @@ void convertMCUToRGB(std::unique_ptr<Body>& body) {
             if (body->header->numberComponents == 1) {
                 ycbcr = {mcu[0][i], mcu[0][i], mcu[0][i]};
             } else if (body->header->numberComponents == 3) {
-                ycbcr = {
-                    mcu[0][i], // Y
-                    mcu[1][i], // Cb
-                    mcu[2][i]  // Cr
-                };
+                ycbcr = {mcu[0][i], mcu[1][i], mcu[2][i]};
             } else {
                 std::cerr << "Conversion to RGB is only supported for 1 or 3 components" << std::endl;
                 return;

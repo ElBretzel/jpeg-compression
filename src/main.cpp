@@ -108,8 +108,7 @@ void prelude() {
     decodeHuffman(body);
     dequantize(body);
     inverseDCT(body);
-    // convertMCUToRGB(body);
-    //    Profit
+    convertMCUToRGB(body);
 
     printHeader(*body->header);
     std::cout << "Body valid: " << static_cast<bool>(body->isValid) << std::endl;

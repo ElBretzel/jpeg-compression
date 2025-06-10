@@ -17,8 +17,8 @@ int16_t IDCT(MCUComponents& S, uint8_t mcuSize, uint8_t y, uint8_t x) {
             } else {
                 cv = 1.0;
             }
-            s += cu * cv * S[u * mcuSize + v] * cos((2.0 * x + 1.0) * u * M_PI / (2.0 * mcuSize)) *
-                 cos((2.0 * y + 1.0) * v * M_PI / (2.0 * mcuSize));
+            s += cu * cv * S[u * mcuSize + v] * cos((2.0 * x + 1.0) * v * M_PI / (2.0 * mcuSize)) *
+                 cos((2.0 * y + 1.0) * u * M_PI / (2.0 * mcuSize));
         }
     }
 
