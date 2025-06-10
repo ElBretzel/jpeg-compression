@@ -12,7 +12,7 @@ struct Quantization {
     uint8_t tableId;        // between 0 and 3
     uint8_t tablePrecision; // 0 or 1
     bool completed = false;
-    std::array<uint8_t, 64> values;
+    std::array<uint8_t, 64> values; // FIXME if we want to support other MCU sizes
 };
 
 struct Channel {

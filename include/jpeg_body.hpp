@@ -3,13 +3,13 @@
 #include "jpeg_data_stream.hpp"
 #include "jpeg_header.hpp"
 
-using MCUComponents = std::array<int16_t, 64>;
+using MCUComponents = std::array<int16_t, 64>; // FIXME if we want to support other MCU sizes
 using MCUData = std::array<MCUComponents, 4>;
 
 struct MCU {
     std::size_t mcuWidth;
     std::size_t mcuHeight;
-    const std::uint8_t size = 8;
+    const uint8_t size = 8;
     bool isValid = false;
     std::vector<MCUData> mcuData;
 };

@@ -1,4 +1,4 @@
-#include "decode_huffman.hpp"
+#include "huffman_code.hpp"
 
 bool generateCode(std::unique_ptr<Body>& body) {
 

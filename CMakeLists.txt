@@ -59,9 +59,11 @@ set(PROJECT_INCLUDE_MENU_DIR ${PROJECT_INCLUDE_DIR}/menu)
 
 add_executable(a.out
     ${PROJECT_SOURCE_DIR}/main.cpp
-    ${PROJECT_SOURCE_DIR}/decode_huffman.cpp
+    ${PROJECT_SOURCE_DIR}/huffman_code.cpp
     ${PROJECT_SOURCE_DIR}/jpeg_header.cpp
     ${PROJECT_SOURCE_DIR}/jpeg_body.cpp
+    ${PROJECT_SOURCE_DIR}/quantization.cpp
+    ${PROJECT_SOURCE_DIR}/dct.cpp
     ${PROJECT_SOURCE_DIR}/jpeg_def.cpp
     ${PROJECT_SOURCE_DIR}/jpeg_data_stream.cpp
     ${PROJECT_SOURCE_DIR}/sprite_handler.cpp

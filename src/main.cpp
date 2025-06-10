@@ -2,9 +2,11 @@
 #include "frame_counter.hpp"
 #include "sprite_handler.hpp"
 
-#include "decode_huffman.hpp"
+#include "dct.hpp"
+#include "huffman_code.hpp"
 #include "jpeg_body.hpp"
 #include "jpeg_header.hpp"
+#include "quantization.hpp"
 
 FileBrowser fileBrowser;
 
@@ -86,7 +88,7 @@ void writePPM(std::unique_ptr<Body>& image, const std::string& filename) {
 }
 
 void prelude() {
-    auto filePath = std::string("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/turtle.jpg");
+    auto filePath = std::string("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/cat.jpg");
     if (filePath.empty()) {
         std::cerr << "Can not check validity of jpeg file: " << "path is empty" << std::endl;
         return;
@@ -103,10 +105,10 @@ void prelude() {
     header = nullptr; // Ownership moved into body
     jpegFile.close();
     decodeHuffman(body);
-    //  Dequantize
-    //  IDCT
-    //  IRGB
-    //  Profit
+    dequantize(body);
+    inverseDCT(body);
+    //   IRGB
+    //   Profit
 
     printHeader(*body->header);
     std::cout << "Body valid: " << static_cast<bool>(body->isValid) << std::endl;
