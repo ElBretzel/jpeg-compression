@@ -64,6 +64,7 @@ add_executable(a.out
     ${PROJECT_SOURCE_DIR}/jpeg_body.cpp
     ${PROJECT_SOURCE_DIR}/quantization.cpp
     ${PROJECT_SOURCE_DIR}/dct.cpp
+    ${PROJECT_SOURCE_DIR}/color_conversion.cpp
     ${PROJECT_SOURCE_DIR}/jpeg_def.cpp
     ${PROJECT_SOURCE_DIR}/jpeg_data_stream.cpp
     ${PROJECT_SOURCE_DIR}/sprite_handler.cpp

@@ -2,6 +2,7 @@
 #include "frame_counter.hpp"
 #include "sprite_handler.hpp"
 
+#include "color_conversion.hpp"
 #include "dct.hpp"
 #include "huffman_code.hpp"
 #include "jpeg_body.hpp"
@@ -107,8 +108,8 @@ void prelude() {
     decodeHuffman(body);
     dequantize(body);
     inverseDCT(body);
-    //   IRGB
-    //   Profit
+    // convertMCUToRGB(body);
+    //    Profit
 
     printHeader(*body->header);
     std::cout << "Body valid: " << static_cast<bool>(body->isValid) << std::endl;
