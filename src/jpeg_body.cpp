@@ -62,3 +62,34 @@ std::unique_ptr<Body> scanBody(std::ifstream& jpegFile, std::unique_ptr<Header>&
     body->isValid = true;
     return body;
 }
+
+std::unique_ptr<Header> writeHeader(std::ifstream& ppmFile, std::unique_ptr<Body>& body) {
+    // Some utility variables
+    uint8_t b1;
+    uint8_t b2;
+    uint16_t u1;
+
+    auto header = std::make_unique<Header>();
+    header->isValid = false;
+
+    if (!ppmFile.is_open()) {
+        std::cerr << "Can not check validity of jpeg file: " << "file can't be opened" << std::endl;
+        return;
+    }
+    auto read_byte = [&ppmFile]() {
+        return static_cast<uint8_t>(ppmFile.get());
+    };
+    body->data.addByte(MARKERSTART);
+    body->data.addByte(SOI);
+
+    header->appType = APP0;
+    body->data.addByte(MARKERSTART);
+    body->data.addByte(header->appType);
+    body->data.addByte(0x00);
+
+    body->header->restartInterval = 0;
+    body->data.addByte(MARKERSTART);
+    body->data.addByte(DRI);
+    body->data.addByte(DRILEN);
+    body->data.addByte(body->header->restartInterval);
+}

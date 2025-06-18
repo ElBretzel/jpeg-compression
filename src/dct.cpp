@@ -22,7 +22,8 @@ int16_t IDCT(MCUComponents& S, uint8_t mcuSize, uint8_t y, uint8_t x) {
         }
     }
 
-    return static_cast<int16_t>(std::floor(s * 0.25));
+    // 8bits is hardcoded
+    return static_cast<int16_t>(std::floor(s * 0.25) + 128);
 }
 
 void IDCT(MCUComponents& data, uint8_t mcuSize) {
