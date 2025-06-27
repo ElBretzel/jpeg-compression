@@ -1,29 +1,52 @@
 #include "dct.hpp"
 
+static std::vector<std::vector<float>> cosLUT;
+static std::vector<float> factors;
+static bool precomputed = false;
+static bool precomputedSize = 8;
+
+void precomputeLUT(uint8_t mcuSize) {
+    if (precomputed && mcuSize == precomputedSize) {
+        return;
+    }
+    factors.resize(mcuSize);
+    cosLUT.resize(mcuSize);
+    for (auto& rows : cosLUT) {
+        rows.resize(mcuSize);
+    }
+
+    factors[0] = 1.0f / sqrtf(2.0f);
+    for (auto i = 1; i < mcuSize; i++) {
+        factors[i] = 1.0f;
+    }
+
+    for (auto coord = 0; coord < mcuSize; coord++) {
+        for (auto sub = 0; sub < mcuSize; sub++) {
+            cosLUT[coord][sub] = cosf((2.0f * coord + 1.0f) * sub * M_PI / (2.0f * mcuSize));
+        }
+    }
+
+    precomputed = true;
+    precomputedSize = mcuSize;
+}
+
 // See ITU-T81 A.3.3
 int16_t IDCT(MCUComponents& S, uint8_t mcuSize, uint8_t y, uint8_t x) {
-    double s = 0;
-    double cu, cv;
+    float s = 0;
 
     for (uint8_t u = 0; u < mcuSize; u++) {
+        float cu = factors[u];
+        float cosCu = cosLUT[y][u];
+        int offset = u * mcuSize;
         for (uint8_t v = 0; v < mcuSize; v++) {
-            if (u == 0) {
-                cu = 1.0 / sqrt(2.0);
-            } else {
-                cu = 1.0;
-            }
-            if (v == 0) {
-                cv = 1.0 / sqrt(2.0);
-            } else {
-                cv = 1.0;
-            }
-            s += cu * cv * S[u * mcuSize + v] * cos((2.0 * x + 1.0) * v * M_PI / (2.0 * mcuSize)) *
-                 cos((2.0 * y + 1.0) * u * M_PI / (2.0 * mcuSize));
+            float cv = factors[v];
+            float cosCv = cosLUT[x][v];
+            s += cu * cv * S[offset + v] * cosCu * cosCv;
         }
     }
 
     // 8bits is hardcoded
-    return static_cast<int16_t>(std::floor(s * 0.25) + 128);
+    return static_cast<int16_t>(std::floorf(s * 0.25f) + 128.0f);
 }
 
 void IDCT(MCUComponents& data, uint8_t mcuSize) {
@@ -36,6 +59,7 @@ void IDCT(MCUComponents& data, uint8_t mcuSize) {
 }
 
 void inverseDCT(std::unique_ptr<Body>& body) {
+    precomputeLUT(body->mcu->size);
     for (auto& mcuData : body->mcu->mcuData) {
         for (uint8_t comp = 0; comp < body->header->numberComponents; ++comp) {
             IDCT(mcuData[comp], body->mcu->size);

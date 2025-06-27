@@ -95,8 +95,7 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header, const u
     }
 
     if (type == SOF0) {
-        b1 == read_byte();
-        BYTE_TO_HEX(b1);
+        b1 = read_byte();
         if (b1 != SOF0PRE) {
             std::cerr << "Can not check validity of jpeg file: " << "SOF0 detected yet wrong precision specified"
                       << std::endl;
@@ -436,6 +435,8 @@ std::unique_ptr<Header> scanHeader(std::ifstream& jpegFile) {
         return header;
     }
 
+    bool done = false;
+
     do {
         if (read_byte() != MARKERSTART) {
             std::cerr << "Can not check validity of jpeg file: " << "Marker not present" << std::endl;
@@ -444,52 +445,78 @@ std::unique_ptr<Header> scanHeader(std::ifstream& jpegFile) {
 
         b2 = jpegFile.get();
 
-        if (b2 >= APP0 && b2 <= APPF) {
+        switch (b2) {
+        case APP0:
+        case APP1:
+        case APP2:
+        case APP3:
+        case APP4:
+        case APP5:
+        case APP6:
+        case APP7:
+        case APP8:
+        case APP9:
+        case APPA:
+        case APPB:
+        case APPC:
+        case APPD:
+        case APPE:
+        case APPF:
             header->appType = b2;
             if (!fillApp(jpegFile, header)) {
                 return header;
             }
-        }
-
-        else if (b2 == DQT) {
+            break;
+        case DQT:
             if (!fillDQT(jpegFile, header->quantTable)) {
                 return header;
             }
-        } else if (b2 == SOF0 || b2 == SOF2) {
+            break;
+
+        case SOF0:
+        case SOF2:
             if (!fillFrame(jpegFile, header, b2)) {
                 return header;
             }
+            break;
 
-        } else if (b2 == DHT) {
+        case DHT:
             if (!fillDHT(jpegFile, header)) {
                 return header;
             }
-        } else if (b2 == SOS) {
+            break;
+
+        case SOS:
             if (!fillSOS(jpegFile, header)) {
                 return header;
             }
+            done = true;
             break;
-        } else if (b2 == DRI) {
+        case DRI:
             if (!fillRestart(jpegFile, header)) {
                 return header;
             }
+            break;
+        case EOI:
+            std::cerr << "Can not check validity of jpeg file: EOI can not be found before SOS" << std::endl;
+            return header;
 
-        } else if (b2 == EOI) {
-            std::cerr << "Can not check validity of jpeg file: " << "EOI can not be found before SOS" << std::endl;
-            return header;
-        } else if (b2 == MARKERSTART) {
+        case MARKERSTART:
             // Fill byte, skip...
-        } else if (!b2) {
-            std::cerr << "Can not check validity of jpeg file: " << "Marker can not be 0" << std::endl;
+            break;
+
+        case 0:
+            std::cerr << "Can not check validity of jpeg file: Marker can not be 0" << std::endl;
             return header;
-        } else {
-            std::cerr << "Can not check validity of jpeg file: " << "Marker not implemented" << std::endl;
+
+        default:
+            std::cerr << "Can not check validity of jpeg file: Marker not implemented" << std::endl;
             BYTE_TO_HEX(b2);
             std::cerr << std::endl;
             return header;
         }
 
-    } while (!jpegFile.eof());
+    } while (!done);
 
     header->isValid = true;
     return header;

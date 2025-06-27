@@ -6,13 +6,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=znver4 -mtune=znver4 -flto -DNDEBUG -fno-rtti -fno-asynchronous-unwind-tables -fomit-frame-pointer -funroll-loops -ffast-math -fmerge-all-constants -falign-functions=32 -falign-jumps=16 -falign-loops=32 -fno-exceptions -pthread")
+    set(CMAKE_CXX_FLAGS_RELEASE "-Ofast -march=native -flto \
+    -fno-rtti -fno-exceptions \
+    -funsafe-math-optimizations -ffinite-math-only -fno-math-errno \
+    -fno-trapping-math -ffp-contract=fast \
+    -funroll-loops -ftree-vectorize -fprefetch-loop-arrays \
+    -falign-functions=32 -falign-loops=32 \
+    -mavx2 -mfma -mbmi -mbmi2 -mlzcnt -mpopcnt -DNDEBUG")
     set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3 -fno-math-errno -fdiagnostics-color=always")
 endif()
-
-find_package(xsimd REQUIRED)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(HWLOC REQUIRED hwloc)
 
 set(PROJECT_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src)
 set(PROJECT_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
@@ -25,7 +27,6 @@ add_executable(a.out
     ${PROJECT_SOURCE_DIR}/quantization.cpp
     ${PROJECT_SOURCE_DIR}/dct.cpp
     ${PROJECT_SOURCE_DIR}/color_conversion.cpp
-    ${PROJECT_SOURCE_DIR}/jpeg_def.cpp
     ${PROJECT_SOURCE_DIR}/jpeg_data_stream.cpp
 
 )
@@ -38,6 +39,4 @@ target_include_directories(a.out PRIVATE
 )
 
 target_link_libraries(a.out PRIVATE
-    xsimd
-    ${HWLOC_LIBRARIES}
 )

@@ -23,6 +23,7 @@ void writePPM(std::unique_ptr<Body>& image, const std::string& filename) {
 
     // PPM header
     outFile << "P6\n" << width << " " << height << "\n255\n";
+    std::vector<uint8_t> buffer(width * height * 3);
 
     for (uint y = 0; y < height; ++y) {
         const uint mcuRow = y / 8;
@@ -51,18 +52,20 @@ void writePPM(std::unique_ptr<Body>& image, const std::string& filename) {
                 return;
             }
 
-            outFile.put(r);
-            outFile.put(g);
-            outFile.put(b);
+            size_t index = (y * width + x) * 3;
+            buffer[index] = r;
+            buffer[index + 1] = g;
+            buffer[index + 2] = b;
         }
     }
 
+    outFile.write(reinterpret_cast<const char*>(buffer.data()), buffer.size());
     outFile.close();
     std::cout << "PPM file written successfully.\n";
 }
 
 void prelude() {
-    auto filePath = std::string("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/turtle.jpg");
+    auto filePath = std::string("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/gorilla_2.jpg");
     if (filePath.empty()) {
         std::cerr << "Can not check validity of jpeg file: " << "path is empty" << std::endl;
         return;
