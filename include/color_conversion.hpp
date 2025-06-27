@@ -3,8 +3,6 @@
 #include "jpeg_body.hpp"
 
 #include <algorithm>
-#include <array>
-#include <cstdint>
 
 using RGB = std::array<uint8_t, 3>;
 using YCbCr = std::array<int16_t, 3>;

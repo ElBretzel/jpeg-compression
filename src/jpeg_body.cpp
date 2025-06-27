@@ -74,7 +74,7 @@ std::unique_ptr<Header> writeHeader(std::ifstream& ppmFile, std::unique_ptr<Body
 
     if (!ppmFile.is_open()) {
         std::cerr << "Can not check validity of jpeg file: " << "file can't be opened" << std::endl;
-        return;
+        return header;
     }
     auto read_byte = [&ppmFile]() {
         return static_cast<uint8_t>(ppmFile.get());
@@ -91,5 +91,8 @@ std::unique_ptr<Header> writeHeader(std::ifstream& ppmFile, std::unique_ptr<Body
     body->data.addByte(MARKERSTART);
     body->data.addByte(DRI);
     body->data.addByte(DRILEN);
-    body->data.addByte(body->header->restartInterval);
+    body->data.addByte(static_cast<uint8_t>(body->header->restartInterval >> 8));
+    body->data.addByte(static_cast<uint8_t>(body->header->restartInterval & 0xFF));
+
+    return header;
 }

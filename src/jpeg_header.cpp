@@ -72,7 +72,7 @@ bool fillDQT(std::ifstream& jpegFile, std::array<Quantization, 4>& tables) {
     return true;
 }
 
-bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
+bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header, const uint8_t type) {
     auto read_byte = [&jpegFile]() {
         return static_cast<uint8_t>(jpegFile.get());
     };
@@ -86,7 +86,7 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
     uint8_t b2;
     uint16_t u1;
 
-    header->type = SOF0BAS; // Baseline
+    header->type = type;
 
     u1 = (read_byte() << 8) | read_byte() - 2;
     if (!u1) {
@@ -94,10 +94,23 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
         return false;
     }
 
-    if (read_byte() != SOF0PRE) {
-        std::cerr << "Can not check validity of jpeg file: " << "SOF0 detected yet wrong precision specified"
-                  << std::endl;
-        return false;
+    if (type == SOF0) {
+        b1 == read_byte();
+        BYTE_TO_HEX(b1);
+        if (b1 != SOF0PRE) {
+            std::cerr << "Can not check validity of jpeg file: " << "SOF0 detected yet wrong precision specified"
+                      << std::endl;
+            return false;
+        }
+        header->precision = b1;
+    } else {
+        b1 = read_byte();
+        if (b1 < SOF2MINPRE || b1 > SOF2MAXPRE) {
+            std::cerr << "Can not check validity of jpeg file: " << "SOF2 detected yet wrong precision specified"
+                      << std::endl;
+            return false;
+        }
+        header->precision = b1;
     }
 
     if (--u1 < 4) {
@@ -123,7 +136,7 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
     b1 = read_byte();
     // Nf can be 0-255 but because this value is used in sof to identify comp id, we will restrict to 4 channels without
     // repetition
-    if (!b1 || b1 > SOF0MAXCOMP) {
+    if (!b1 || b1 > SOFMAXCOMP) {
         std::cerr << "Can not check validity of jpeg file: " << "Image should have 1 to 4 channels" << std::endl;
         return false;
     }
@@ -142,7 +155,7 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
             id += 1;
         }
         // Cid can be 0, but we will suppose that ID is always entered between 1 and 4
-        if (!id || id > SOF0MAXCOMP) {
+        if (!id || id > SOFMAXCOMP) {
             std::cerr << "Can not check validity of jpeg file: " << "Channel ID weirdly specified" << std::endl;
             return false;
         }
@@ -155,12 +168,12 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
         channel.horizontalSampling = b2 >> 4;
         channel.verticalSampling = b2 & 0x0F;
 
-        if (channel.horizontalSampling < SOF0MINSAMP || channel.horizontalSampling > SOF0MAXSAMP) {
+        if (channel.horizontalSampling < SOFMINSAMP || channel.horizontalSampling > SOFMAXSAMP) {
             std::cerr << "Can not check validity of jpeg file: "
                       << "Horizontal sampling factor has incorrect number of data units" << std::endl;
             return false;
         }
-        if (channel.verticalSampling < SOF0MINSAMP || channel.verticalSampling > SOF0MAXSAMP) {
+        if (channel.verticalSampling < SOFMINSAMP || channel.verticalSampling > SOFMAXSAMP) {
             std::cerr << "Can not check validity of jpeg file: "
                       << "Vertical sampling factor has incorrect number of data units" << std::endl;
             return false;
@@ -354,19 +367,48 @@ bool fillSOS(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
                   << "SOS wrong size" << std::endl;
         return false;
     }
-    if (b1 = read_byte(), b2 = read_byte(); b1 != SOSSPECS || b2 != SOSSPECE) {
+
+    b1 = read_byte();
+    if (header->type == SOF0 && b1) {
         std::cerr << "Can not check validity of jpeg file: "
-                  << "Non baseline spectral selection is not supported" << std::endl;
+                  << "Baseline spectral selection is not supported" << std::endl;
         return false;
     }
+    if (header->type == SOF2 && b1 > EOS) {
+        std::cerr << "Can not check validity of jpeg file: "
+                  << "Spectral selection start is too high" << std::endl;
+        return false;
+    }
+    header->progressiveInfo.startOfSpectral = b1;
+
+    b1 = read_byte();
+    if (header->type == SOF0 && b1 != EOS) {
+        std::cerr << "Can not check validity of jpeg file: "
+                  << "Baseline spectral selection is not supported" << std::endl;
+        return false;
+    }
+    if (header->type == SOF2 && b1 <= header->progressiveInfo.startOfSpectral) {
+        std::cerr << "Can not check validity of jpeg file: "
+                  << "Spectral selection end is too low" << std::endl;
+        return false;
+    }
+    header->progressiveInfo.endOfSpectral = b1;
+
     b1 = read_byte();
     b2 = b1 >> 4;
     b1 = b1 & 0x0F;
-    if (b1 != SOSSUCC || b2 != SOSSUCC) {
+    if (header->type == SOF0 && (b1 || b2)) {
         std::cerr << "Can not check validity of jpeg file: "
-                  << "Non baseline successive approximation position bit is not supported" << std::endl;
+                  << "Baseline successive approximation position bit is not supported" << std::endl;
         return false;
     }
+    if (header->type == SOF2 && (b1 > SOSSUCCBITMAX || b2 > SOSSUCCBITMAX)) {
+        std::cerr << "Can not check validity of jpeg file: "
+                  << "Successive approximation bit is too high" << std::endl;
+        return false;
+    }
+    header->progressiveInfo.successiveBitHigh = b1;
+    header->progressiveInfo.successiveBitLow = b2;
 
     return true;
 }
@@ -413,8 +455,8 @@ std::unique_ptr<Header> scanHeader(std::ifstream& jpegFile) {
             if (!fillDQT(jpegFile, header->quantTable)) {
                 return header;
             }
-        } else if (b2 == SOF0) {
-            if (!fillFrame(jpegFile, header)) {
+        } else if (b2 == SOF0 || b2 == SOF2) {
+            if (!fillFrame(jpegFile, header, b2)) {
                 return header;
             }
 
@@ -475,6 +517,7 @@ void printSOFTable(const Header& header) {
     std::cout << "Image convention type: ";
     BYTE_TO_HEX(header.appType);
     std::cout << std::endl;
+    std::cout << "Precision: " << header.precision << std::endl;
     std::cout << "Image width: " << header.width << std::endl;
     std::cout << "Image height: " << header.height << std::endl;
     std::cout << "Image type: 0x";

@@ -3,7 +3,6 @@
 #include <SFML/Graphics.hpp>
 #include <algorithm>
 #include <iostream>
-#include <unordered_map>
 
 struct SpriteContainer {
     std::size_t spriteId;

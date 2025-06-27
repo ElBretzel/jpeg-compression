@@ -5,7 +5,6 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
-#include <string>
 #include <vector>
 
 struct Quantization {
@@ -13,6 +12,13 @@ struct Quantization {
     uint8_t tablePrecision; // 0 or 1
     bool completed = false;
     std::array<uint8_t, 64> values; // FIXME if we want to support other MCU sizes
+};
+
+struct Progressive {
+    uint8_t startOfSpectral;
+    uint8_t endOfSpectral;
+    uint8_t successiveBitHigh;
+    uint8_t successiveBitLow;
 };
 
 struct Channel {
@@ -44,8 +50,10 @@ struct Header {
     uint8_t appType;
     uint16_t width;
     uint16_t height;
-    uint8_t numberComponents; // 1 for grayscale or 3 for RGB, 4 for baseline complience
+    uint8_t precision;
+    uint8_t numberComponents; // 1 for grayscale, 3 for YCbCr, 4 for CMYK / YCbCrK (complience)
     uint16_t restartInterval;
+    Progressive progressiveInfo;
     std::array<Quantization, 4> quantTable;
     std::array<Channel, 4> channels; // Extra channels may be empty
     std::array<HuffmanTable, 4> huffmanTable;
