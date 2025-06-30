@@ -1,8 +1,8 @@
 #pragma once
 
+#include "jpeg_data_stream.hpp"
 #include "jpeg_def.hpp"
 #include <array>
-#include <fstream>
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -27,7 +27,8 @@ struct Channel {
     uint8_t quantizationId;     // between 0 and 3
     uint8_t huffACId;           // 0 or 1
     uint8_t huffDCId;           // 0 or 1
-    bool completed = false;
+    bool frame_completed = false;
+    bool scan_completed = false;
 };
 
 struct HuffmanData {
@@ -59,5 +60,6 @@ struct Header {
     std::array<HuffmanTable, 4> huffmanTable;
 };
 
-std::unique_ptr<Header> scanHeader(std::ifstream& jpegFile);
+std::unique_ptr<Header> scanHeader(JpegDataStream& jpegStream);
 void printHeader(const Header& header);
+bool fillSOS(JpegDataStream& jpegStream, std::unique_ptr<Header>& header);

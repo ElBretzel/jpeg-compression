@@ -23,7 +23,7 @@ add_executable(a.out
     ${PROJECT_SOURCE_DIR}/main.cpp
     ${PROJECT_SOURCE_DIR}/huffman_code.cpp
     ${PROJECT_SOURCE_DIR}/jpeg_header.cpp
-    ${PROJECT_SOURCE_DIR}/jpeg_body.cpp
+    ${PROJECT_SOURCE_DIR}/jpeg_scan.cpp
     ${PROJECT_SOURCE_DIR}/quantization.cpp
     ${PROJECT_SOURCE_DIR}/dct.cpp
     ${PROJECT_SOURCE_DIR}/color_conversion.cpp

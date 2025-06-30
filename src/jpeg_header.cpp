@@ -1,33 +1,17 @@
 #include "jpeg_header.hpp"
 
-bool readLength(std::ifstream& jpegFile, uint16_t length) {
-    while (length--) {
-        uint8_t b = jpegFile.get();
-        if (b == EOF) {
-            std::cerr << "Can not check validity of jpeg file: " << "Read ended prematuraly" << std::endl;
-            return false;
-        }
-    }
-    return true;
-}
-
-bool fillDQT(std::ifstream& jpegFile, std::array<Quantization, 4>& tables) {
-    auto read_byte = [&jpegFile]() {
-        return static_cast<uint8_t>(jpegFile.get());
-    };
-
+bool fillDQT(JpegDataStream& jpegStream, std::array<Quantization, 4>& tables) {
     uint8_t b1;
     uint8_t b2;
     uint16_t u1;
 
-    u1 = (read_byte() << 8) | read_byte() - 2;
+    u1 = (jpegStream.readByte() << 8) | jpegStream.readByte() - 2;
 
     while (u1) {
         Quantization quant;
-        b1 = read_byte();
+        b2 = jpegStream.readBits(4); // table precision
+        b1 = jpegStream.readBits(4); // table id
         u1--;
-        b2 = (b1 >> 4); // table precision
-        b1 = b1 & 0x0F; // table id
 
         if (b1 > DQTMI) {
             std::cerr << "Can not check validity of jpeg file: " << "Quantization tables ID is invalid" << std::endl;
@@ -50,7 +34,7 @@ bool fillDQT(std::ifstream& jpegFile, std::array<Quantization, 4>& tables) {
 
         uint8_t i = 0;
         while (i < MCUX) {
-            b1 = read_byte();
+            b1 = jpegStream.readByte();
             if (b1 == EOF) {
                 std::cerr << "Can not check validity of jpeg file: " << "DQT ended prematuraly" << std::endl;
                 return false;
@@ -72,11 +56,7 @@ bool fillDQT(std::ifstream& jpegFile, std::array<Quantization, 4>& tables) {
     return true;
 }
 
-bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header, const uint8_t type) {
-    auto read_byte = [&jpegFile]() {
-        return static_cast<uint8_t>(jpegFile.get());
-    };
-
+bool fillFrame(JpegDataStream& jpegStream, std::unique_ptr<Header>& header, const uint8_t type) {
     if (header->type != 0xFF) {
         std::cerr << "Can not check validity of jpeg file: " << "Image contains more than 1 frame" << std::endl;
         return false;
@@ -88,14 +68,14 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header, const u
 
     header->type = type;
 
-    u1 = (read_byte() << 8) | read_byte() - 2;
+    u1 = (jpegStream.readByte() << 8) | jpegStream.readByte() - 2;
     if (!u1) {
         std::cerr << "Can not check validity of jpeg file: " << "Incorrect SOF0 size" << std::endl;
         return false;
     }
 
     if (type == SOF0) {
-        b1 = read_byte();
+        b1 = jpegStream.readByte();
         if (b1 != SOF0PRE) {
             std::cerr << "Can not check validity of jpeg file: " << "SOF0 detected yet wrong precision specified"
                       << std::endl;
@@ -103,7 +83,7 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header, const u
         }
         header->precision = b1;
     } else {
-        b1 = read_byte();
+        b1 = jpegStream.readByte();
         if (b1 < SOF2MINPRE || b1 > SOF2MAXPRE) {
             std::cerr << "Can not check validity of jpeg file: " << "SOF2 detected yet wrong precision specified"
                       << std::endl;
@@ -117,8 +97,8 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header, const u
         return false;
     }
 
-    header->height = (read_byte() << 8) | read_byte();
-    header->width = (read_byte() << 8) | read_byte();
+    header->height = (jpegStream.readByte() << 8) | jpegStream.readByte();
+    header->width = (jpegStream.readByte() << 8) | jpegStream.readByte();
 
     if (header->width == 0 || header->height == 0) {
         std::cerr << "Can not check validity of jpeg file: "
@@ -132,7 +112,7 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header, const u
         return false;
     }
 
-    b1 = read_byte();
+    b1 = jpegStream.readByte();
     // Nf can be 0-255 but because this value is used in sof to identify comp id, we will restrict to 4 channels without
     // repetition
     if (!b1 || b1 > SOFMAXCOMP) {
@@ -148,7 +128,7 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header, const u
     }
 
     for (int8_t ci = 0; ci < b1; ci++) {
-        uint8_t id = read_byte();
+        uint8_t id = jpegStream.readByte();
 
         if (header->appType == APPE) {
             id += 1;
@@ -159,13 +139,12 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header, const u
             return false;
         }
         Channel channel = std::move(header->channels[id - 1]);
-        if (channel.completed) {
+        if (channel.frame_completed) {
             std::cerr << "Can not check validity of jpeg file: " << "SOF channel already been filled" << std::endl;
             return false;
         }
-        b2 = read_byte();
-        channel.horizontalSampling = b2 >> 4;
-        channel.verticalSampling = b2 & 0x0F;
+        channel.horizontalSampling = jpegStream.readBits(4);
+        channel.verticalSampling = jpegStream.readBits(4);
 
         if (channel.horizontalSampling < SOFMINSAMP || channel.horizontalSampling > SOFMAXSAMP) {
             std::cerr << "Can not check validity of jpeg file: "
@@ -177,12 +156,12 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header, const u
                       << "Vertical sampling factor has incorrect number of data units" << std::endl;
             return false;
         }
-        channel.quantizationId = read_byte();
+        channel.quantizationId = jpegStream.readByte();
         if (channel.quantizationId > DQTMI) {
             std::cerr << "Can not check validity of jpeg file: " << "Quantization table ID overflow" << std::endl;
             return false;
         }
-        channel.completed = true;
+        channel.frame_completed = true;
         header->channels[id - 1] = std::move(channel);
         u1 -= 3;
     }
@@ -190,51 +169,37 @@ bool fillFrame(std::ifstream& jpegFile, std::unique_ptr<Header>& header, const u
     return true;
 }
 
-bool fillRestart(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
-    auto read_byte = [&jpegFile]() {
-        return static_cast<uint8_t>(jpegFile.get());
-    };
-
+bool fillRestart(JpegDataStream& jpegStream, std::unique_ptr<Header>& header) {
     uint8_t b1;
     uint8_t b2;
     uint16_t u1;
 
-    u1 = (read_byte() << 8) | read_byte();
+    u1 = (jpegStream.readByte() << 8) | jpegStream.readByte();
     if (u1 != DRILEN) {
         std::cerr << "Can not check validity of jpeg file: " << "DRI marker has wrong size" << std::endl;
         return false;
     }
 
-    header->restartInterval = (read_byte() << 8) | read_byte();
+    header->restartInterval = (jpegStream.readByte() << 8) | jpegStream.readByte();
     return true;
 }
-bool fillApp(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
-
-    auto read_byte = [&jpegFile]() {
-        return static_cast<uint8_t>(jpegFile.get());
-    };
-
-    if (!readLength(jpegFile, (read_byte() << 8) | read_byte() - 2)) {
+bool fillApp(JpegDataStream& jpegStream, std::unique_ptr<Header>& header) {
+    if (jpegStream.readBits((jpegStream.readByte() << 8 | jpegStream.readByte() - 2) * 8) == 0xFFFF) {
         return false;
     }
     return true;
 }
 
-bool fillDHT(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
-    auto read_byte = [&jpegFile]() {
-        return static_cast<uint8_t>(jpegFile.get());
-    };
-
+bool fillDHT(JpegDataStream& jpegStream, std::unique_ptr<Header>& header) {
     uint8_t b1;
     uint8_t b2;
     uint16_t u1;
 
-    u1 = (read_byte() << 8) | read_byte() - 2;
+    u1 = (jpegStream.readByte() << 8) | jpegStream.readByte() - 2;
 
     while (u1) {
-        b1 = read_byte();
-        b2 = b1 >> 4;
-        b1 = b1 & 0x0F;
+        b2 = jpegStream.readBits(4);
+        b1 = jpegStream.readBits(4);
         u1--;
 
         if (b1 > DHTMHT) {
@@ -267,7 +232,7 @@ bool fillDHT(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
                 std::cerr << "Can not check validity of jpeg file: " << "DHT ended prematuraly" << std::endl;
                 return false;
             }
-            code.symbolCount = read_byte();
+            code.symbolCount = jpegStream.readByte();
             code.huffVal.reserve(code.symbolCount);
             code.huffCode.reserve(code.symbolCount);
             totalSymbol += code.symbolCount;
@@ -284,7 +249,7 @@ bool fillDHT(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
             uint8_t symbolCount = huffTable.huffData[i].symbolCount;
             // Maybe add additional check for Huffman entropy coding (bit overflow)
             for (uint8_t j = 0; j < symbolCount; j++) {
-                huffTable.huffData[i].huffVal.push_back(read_byte());
+                huffTable.huffData[i].huffVal.push_back(jpegStream.readByte());
                 u1--;
             }
         }
@@ -302,27 +267,19 @@ bool fillDHT(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
     return true;
 }
 
-bool fillSOS(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
-    auto read_byte = [&jpegFile]() {
-        return static_cast<uint8_t>(jpegFile.get());
-    };
-
+bool fillSOS(JpegDataStream& jpegStream, std::unique_ptr<Header>& header) {
     uint8_t b1;
     uint8_t b2;
     uint16_t u1;
 
-    u1 = read_byte() << 8 | read_byte() - 2;
+    u1 = jpegStream.readByte() << 8 | jpegStream.readByte() - 2;
     if (!u1) {
         std::cerr << "Can not check validity of jpeg file: "
                   << "SOS wrong size" << std::endl;
         return false;
     }
 
-    for (auto& c : header->channels) {
-        c.completed = false;
-    }
-
-    b1 = read_byte();
+    b1 = jpegStream.readByte();
     if (--u1 < 2 * b1) {
         std::cerr << "Can not check validity of jpeg file: "
                   << "SOS can not store channels coding" << std::endl;
@@ -333,7 +290,7 @@ bool fillSOS(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
     // Sampling is also ignored for now (and maybe will never be implemented)
 
     for (uint8_t i = 0; i < b1; i++) {
-        uint8_t id = read_byte();
+        uint8_t id = jpegStream.readByte();
         if (header->appType == APPE) {
             id += 1;
         }
@@ -343,21 +300,24 @@ bool fillSOS(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
             return false;
         }
         Channel channel = std::move(header->channels[id - 1]);
-        if (channel.completed) {
-            std::cerr << "Can not check validity of jpeg file: " << "SOS channel already been filled" << std::endl;
+        if (!channel.frame_completed) {
+            std::cerr << "Channel frame was not completed before" << std::endl;
+            return false;
+        }
+        if (channel.scan_completed) {
+            std::cerr << "Can not check validity of jpeg file: " << "SOS channel scan already been filled" << std::endl;
             return false;
         }
 
-        b2 = read_byte();
-        channel.huffDCId = b2 >> 4;
-        channel.huffACId = b2 & 0x0F;
+        channel.huffDCId = jpegStream.readBits(4);
+        channel.huffACId = jpegStream.readBits(4);
 
         if (channel.huffACId > DHTMHT || channel.huffDCId > DHTMHT) {
             std::cerr << "Can not check validity of jpeg file: " << "SOS channel Huffman ID overflow" << std::endl;
             return false;
         }
 
-        channel.completed = true;
+        channel.scan_completed = true;
         header->channels[id - 1] = std::move(channel);
         u1 -= 2;
     }
@@ -367,7 +327,7 @@ bool fillSOS(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
         return false;
     }
 
-    b1 = read_byte();
+    b1 = jpegStream.readByte();
     if (header->type == SOF0 && b1) {
         std::cerr << "Can not check validity of jpeg file: "
                   << "Baseline spectral selection is not supported" << std::endl;
@@ -380,22 +340,21 @@ bool fillSOS(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
     }
     header->progressiveInfo.startOfSpectral = b1;
 
-    b1 = read_byte();
+    b1 = jpegStream.readByte();
     if (header->type == SOF0 && b1 != EOS) {
         std::cerr << "Can not check validity of jpeg file: "
                   << "Baseline spectral selection is not supported" << std::endl;
         return false;
     }
-    if (header->type == SOF2 && b1 <= header->progressiveInfo.startOfSpectral) {
+    if (header->type == SOF2 && b1 < header->progressiveInfo.startOfSpectral) {
         std::cerr << "Can not check validity of jpeg file: "
                   << "Spectral selection end is too low" << std::endl;
         return false;
     }
     header->progressiveInfo.endOfSpectral = b1;
 
-    b1 = read_byte();
-    b2 = b1 >> 4;
-    b1 = b1 & 0x0F;
+    b2 = jpegStream.readBits(4);
+    b1 = jpegStream.readBits(4);
     if (header->type == SOF0 && (b1 || b2)) {
         std::cerr << "Can not check validity of jpeg file: "
                   << "Baseline successive approximation position bit is not supported" << std::endl;
@@ -406,13 +365,13 @@ bool fillSOS(std::ifstream& jpegFile, std::unique_ptr<Header>& header) {
                   << "Successive approximation bit is too high" << std::endl;
         return false;
     }
-    header->progressiveInfo.successiveBitHigh = b1;
-    header->progressiveInfo.successiveBitLow = b2;
+    header->progressiveInfo.successiveBitHigh = b2;
+    header->progressiveInfo.successiveBitLow = b1;
 
     return true;
 }
 
-std::unique_ptr<Header> scanHeader(std::ifstream& jpegFile) {
+std::unique_ptr<Header> scanHeader(JpegDataStream& jpegStream) {
     // Some utility variables
     uint8_t b1;
     uint8_t b2;
@@ -421,16 +380,8 @@ std::unique_ptr<Header> scanHeader(std::ifstream& jpegFile) {
     auto header = std::make_unique<Header>();
     header->isValid = false;
 
-    if (!jpegFile.is_open()) {
-        std::cerr << "Can not check validity of jpeg file: " << "file can't be opened" << std::endl;
-        return header;
-    }
-    auto read_byte = [&jpegFile]() {
-        return static_cast<uint8_t>(jpegFile.get());
-    };
-
     // https://www.w3.org/Graphics/JPEG/itu-t81.pdf
-    if (read_byte() != MARKERSTART || read_byte() != SOI) {
+    if (jpegStream.readByte() != MARKERSTART || jpegStream.readByte() != SOI) {
         std::cerr << "Can not check validity of jpeg file: " << "SOI incorrect" << std::endl;
         return header;
     }
@@ -438,12 +389,13 @@ std::unique_ptr<Header> scanHeader(std::ifstream& jpegFile) {
     bool done = false;
 
     do {
-        if (read_byte() != MARKERSTART) {
+        auto i = jpegStream.readByte();
+        if (i != MARKERSTART) {
             std::cerr << "Can not check validity of jpeg file: " << "Marker not present" << std::endl;
             return header;
         }
 
-        b2 = jpegFile.get();
+        b2 = jpegStream.readByte();
 
         switch (b2) {
         case APP0:
@@ -463,37 +415,34 @@ std::unique_ptr<Header> scanHeader(std::ifstream& jpegFile) {
         case APPE:
         case APPF:
             header->appType = b2;
-            if (!fillApp(jpegFile, header)) {
+            if (!fillApp(jpegStream, header)) {
                 return header;
             }
             break;
         case DQT:
-            if (!fillDQT(jpegFile, header->quantTable)) {
+            if (!fillDQT(jpegStream, header->quantTable)) {
                 return header;
             }
             break;
 
         case SOF0:
         case SOF2:
-            if (!fillFrame(jpegFile, header, b2)) {
+            if (!fillFrame(jpegStream, header, b2)) {
                 return header;
             }
             break;
 
         case DHT:
-            if (!fillDHT(jpegFile, header)) {
+            if (!fillDHT(jpegStream, header)) {
                 return header;
             }
             break;
 
         case SOS:
-            if (!fillSOS(jpegFile, header)) {
-                return header;
-            }
-            done = true;
-            break;
+            header->isValid = true;
+            return header;
         case DRI:
-            if (!fillRestart(jpegFile, header)) {
+            if (!fillRestart(jpegStream, header)) {
                 return header;
             }
             break;
@@ -516,10 +465,7 @@ std::unique_ptr<Header> scanHeader(std::ifstream& jpegFile) {
             return header;
         }
 
-    } while (!done);
-
-    header->isValid = true;
-    return header;
+    } while (true);
 }
 
 void printDQTTable(const Header& header) {
@@ -555,7 +501,8 @@ void printSOFTable(const Header& header) {
     for (int i = 0; i < header.numberComponents; ++i) {
         const auto& ch = header.channels[i];
         std::cout << "Channel ID: " << i << std::endl;
-        std::cout << "  Completed: " << ch.completed << std::endl;
+        std::cout << "  Frame completed: " << ch.frame_completed << std::endl;
+        std::cout << "  Scan completed: " << ch.scan_completed << std::endl;
         std::cout << "  Horizontal sampling: " << static_cast<int>(ch.horizontalSampling) << std::endl;
         std::cout << "  Vertical sampling: " << static_cast<int>(ch.verticalSampling) << std::endl;
         std::cout << "  Quantization table ID: " << static_cast<int>(ch.quantizationId) << std::endl;

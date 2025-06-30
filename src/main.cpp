@@ -1,7 +1,7 @@
 #include "color_conversion.hpp"
 #include "dct.hpp"
 #include "huffman_code.hpp"
-#include "jpeg_body.hpp"
+#include "jpeg_scan.hpp"
 #include "quantization.hpp"
 
 void writePPM(std::unique_ptr<Body>& image, const std::string& filename) {
@@ -65,23 +65,11 @@ void writePPM(std::unique_ptr<Body>& image, const std::string& filename) {
 }
 
 void prelude() {
-    auto filePath = std::string("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/gorilla_2.jpg");
-    if (filePath.empty()) {
-        std::cerr << "Can not check validity of jpeg file: " << "path is empty" << std::endl;
-        return;
-    }
-    if (!filePath.ends_with(".jpg") && !filePath.ends_with(".jpeg")) {
-        std::cerr << "Can not check validity of jpeg file: " << "file has incorrect format" << std::endl;
-        return;
-    }
+    JpegDataStream jpegStream = JpegDataStream("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/prog/earth.jpg");
 
-    std::ifstream jpegFile(filePath, std::ios::binary);
-
-    auto header = scanHeader(jpegFile);
-    auto body = scanBody(jpegFile, header);
+    auto header = scanHeader(jpegStream);
+    auto body = fillScans(jpegStream, header);
     header = nullptr; // Ownership moved into body
-    jpegFile.close();
-    decodeHuffman(body);
     dequantize(body);
     inverseDCT(body);
     convertMCUToRGB(body);

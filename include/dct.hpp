@@ -1,6 +1,6 @@
 #pragma once
 
-#include "jpeg_body.hpp"
+#include "jpeg_scan.hpp"
 #include <math.h>
 
 // See ITU-T81 A.3.3

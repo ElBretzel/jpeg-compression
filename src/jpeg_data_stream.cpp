@@ -1,97 +1,61 @@
 #include "jpeg_data_stream.hpp"
 
-uint8_t JpegDataStream::readBit() {
-    if (cursor.bytePos >= data.size()) {
-        std::cerr << "jpegDataStream EOS" << std::endl;
-        return 0xFF;
+uint8_t JpegDataStream::readBit(bool scan) {
+    if (bitPos == 8) {
+        bitPos = 0;
+        currentByte = file.get();
+
+        if (scan) {
+            while (currentByte == MARKERSTART) {
+                uint8_t currentMarker = file.peek();
+                if (currentMarker == MARKERSTART) {
+                    file.get(); // 0xFFFF00.. -> 0x00.., 0xFF in currentByte, 0x00 in currentMarker
+                    currentMarker = file.peek();
+                } else if (!currentMarker) {
+                    file.get(); // 0xFF00AA.. -> 0xAA.., 0xFF in currentByte
+                    break;
+
+                } else if (currentMarker >= RST0 && currentMarker <= RST7) {
+                    file.get(); // 0xFFD1FF00.. -> 0x00.., 0xFF in currentByte
+                    currentByte = file.get();
+                } else {
+                    std::cerr << "Unexpected marker during readBit scan" << std::endl;
+                    break;
+                }
+            }
+        }
     }
 
-    uint8_t b = peekBit();
-    cursor.bitPos++;
-    if (cursor.bitPos == 8) {
-        cursor.bitPos = 0;
-        cursor.bytePos++;
-    }
+    uint8_t byte = (currentByte >> (7 - bitPos)) & 1;
+    bitPos++;
+    return byte;
+}
 
-    return b;
-}
-uint8_t JpegDataStream::readByte() {
-    return readBits(8);
-}
-uint16_t JpegDataStream::readBits(uint8_t length) {
-    if (length > DHTBITS) {
-        std::cerr << "jpegDataStream can not read more than 16 bits" << std::endl;
-        return 0xFFFF;
-    }
+uint64_t JpegDataStream::readBits(uint8_t length, bool scan) {
 
     uint16_t u1 = 0;
     for (uint8_t i = 0; i < length; i++) {
-        uint8_t b1 = readBit();
+        uint8_t b1 = readBit(scan);
         if (b1 == 0xFF) {
-            return 0xFFFF;
+            return -1;
         }
         u1 = (u1 << 1) | b1;
     }
     return u1;
 }
-uint8_t JpegDataStream::peekBit() const {
-    uint8_t b1 = data[cursor.bytePos];
-    return (b1 >> (7 - cursor.bitPos)) & 1;
+
+uint8_t JpegDataStream::readByte(bool scan) {
+    return readBits(8, scan);
 }
-uint8_t JpegDataStream::peekByte() const {
 
-    uint8_t bitPos = cursor.bitPos;
-    std::size_t bytePos = cursor.bytePos;
-
-    uint8_t u1 = 0;
-
-    // Combine peekBit, readBit and readBits logic
-    for (uint8_t i = 0; i < 8; i++) {
-        if (bytePos >= data.size()) {
-            return 0xFF;
-        }
-        uint8_t b1 = data[bytePos];
-        uint8_t b2 = (b1 >> (7 - bitPos)) & 1;
-
-        u1 = (u1 << 1) | b2;
-        bitPos++;
-        if (bitPos == 8) {
-            bitPos = 0;
-            bytePos++;
-        }
-    }
-
-    return u1;
+uint8_t JpegDataStream::peekBit() const {
+    return (currentByte >> (7 - bitPos)) & 1;
 }
 void JpegDataStream::align() {
-    if (cursor.bitPos != 0) {
-        cursor.bitPos = 0;
-        cursor.bytePos++;
+    if (bitPos != 8) {
+        bitPos = 8; // next readBit will read first bit of new byte
     }
 }
-void JpegDataStream::addByte(uint8_t b) {
-    data.push_back(b);
-}
-
-uint8_t JpegDataStream::checkMarker() const {
-    if (cursor.bitPos != 0) {
-        return 0xFF;
-    }
-    if (cursor.bytePos >= data.size()) {
-        return 0xFF;
-    }
-    if (data[cursor.bytePos] != 0xFF) {
-        return 0xFF;
-    }
-    if (cursor.bytePos + 1 >= data.size()) {
-        return 0xFF;
-    }
-    return data[cursor.bytePos + 1];
-}
-const Cursor& JpegDataStream::getCursor() const {
-    return cursor;
-}
-void JpegDataStream::setCursor(Cursor& c) {
-    cursor.bitPos = c.bitPos;
-    cursor.bytePos = c.bytePos;
+bool JpegDataStream::isEOF() {
+    return (file.peek() == EOF || file.eof() || file.fail());
 }

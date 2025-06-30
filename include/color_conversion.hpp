@@ -1,6 +1,6 @@
 #pragma once
 
-#include "jpeg_body.hpp"
+#include "jpeg_scan.hpp"
 
 #include <algorithm>
 

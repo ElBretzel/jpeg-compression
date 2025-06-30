@@ -1,31 +1,37 @@
 #pragma once
 
+#include <fstream>
 #include <iostream>
-#include <vector>
 
 #include "jpeg_def.hpp"
 
-struct Cursor {
-    uint8_t bitPos = 0;
-    std::size_t bytePos = 0;
-};
-
 class JpegDataStream {
   public:
-    JpegDataStream() {}
+    JpegDataStream(const std::string& streamPath) : file(streamPath, std::ios::binary) {
+        if (streamPath.empty()) {
+            std::cerr << "Can not check validity of jpeg file: " << "path is empty" << std::endl;
+        }
+        if (!streamPath.ends_with(".jpg") && !streamPath.ends_with(".jpeg")) {
+            std::cerr << "Can not check validity of jpeg file: " << "file has incorrect format" << std::endl;
+        }
+        if (!file.is_open()) {
+            std::cerr << "Failed to open given file..." << std::endl;
+        }
+        currentByte = file.get();
+    }
+    ~JpegDataStream() {
+        file.close();
+    }
 
-    uint8_t readBit();
-    uint8_t readByte();
-    uint16_t readBits(uint8_t length);
+    uint8_t readBit(bool scan = false);
+    uint8_t readByte(bool scan = false);
+    uint64_t readBits(uint8_t length, bool scan = false);
     uint8_t peekBit() const;
-    uint8_t peekByte() const;
     void align();
-    void addByte(uint8_t b);
-    uint8_t checkMarker() const;
-    const Cursor& getCursor() const;
-    void setCursor(Cursor& c);
+    bool isEOF();
 
   private:
-    std::vector<uint8_t> data;
-    Cursor cursor;
+    std::ifstream file;
+    std::uint8_t bitPos;
+    uint8_t currentByte;
 };
