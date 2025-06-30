@@ -43,6 +43,7 @@ constexpr uint8_t SOFMINSAMP = 0x01;
 constexpr uint8_t SOFMAXSAMP = 0x04;
 constexpr uint8_t DHT = 0xC4;
 constexpr uint8_t DHTMHT = 0x01;
+constexpr uint8_t DHTMHT2 = 0x03;
 constexpr uint8_t DHTBITS = 0x10;
 constexpr uint8_t SOS = 0xDA;
 constexpr uint8_t SOSSUCCBITMAX = 0x0D;

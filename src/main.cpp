@@ -65,7 +65,7 @@ void writePPM(std::unique_ptr<Body>& image, const std::string& filename) {
 }
 
 void prelude() {
-    JpegDataStream jpegStream = JpegDataStream("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/prog/earth.jpg");
+    JpegDataStream jpegStream = JpegDataStream("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/cat.jpg");
 
     auto header = scanHeader(jpegStream);
     auto body = fillScans(jpegStream, header);
@@ -73,8 +73,6 @@ void prelude() {
     dequantize(body);
     inverseDCT(body);
     convertMCUToRGB(body);
-
-    printHeader(*body->header);
     std::cout << "Body valid: " << static_cast<bool>(body->isValid) << std::endl;
     std::cout << "MCU valid: " << static_cast<bool>(body->mcu->isValid) << std::endl;
     writePPM(body, "/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/out.ppm");

@@ -130,15 +130,16 @@ bool fillFrame(JpegDataStream& jpegStream, std::unique_ptr<Header>& header, cons
     for (int8_t ci = 0; ci < b1; ci++) {
         uint8_t id = jpegStream.readByte();
 
-        if (header->appType == APPE) {
-            id += 1;
+        if (ci == 0) {
+            header->component_offset = id;
         }
-        // Cid can be 0, but we will suppose that ID is always entered between 1 and 4
-        if (!id || id > SOFMAXCOMP) {
+        id -= header->component_offset;
+
+        if (id > SOFMAXCOMP - 1) {
             std::cerr << "Can not check validity of jpeg file: " << "Channel ID weirdly specified" << std::endl;
             return false;
         }
-        Channel channel = std::move(header->channels[id - 1]);
+        Channel channel = std::move(header->channels[id]);
         if (channel.frame_completed) {
             std::cerr << "Can not check validity of jpeg file: " << "SOF channel already been filled" << std::endl;
             return false;
@@ -162,7 +163,7 @@ bool fillFrame(JpegDataStream& jpegStream, std::unique_ptr<Header>& header, cons
             return false;
         }
         channel.frame_completed = true;
-        header->channels[id - 1] = std::move(channel);
+        header->channels[id] = std::move(channel);
         u1 -= 3;
     }
 
@@ -184,8 +185,13 @@ bool fillRestart(JpegDataStream& jpegStream, std::unique_ptr<Header>& header) {
     return true;
 }
 bool fillApp(JpegDataStream& jpegStream, std::unique_ptr<Header>& header) {
-    if (jpegStream.readBits((jpegStream.readByte() << 8 | jpegStream.readByte() - 2) * 8) == 0xFFFF) {
-        return false;
+    uint16_t length = (jpegStream.readByte() << 8) | jpegStream.readByte() - 2;
+
+    for (uint16_t i = 0; i < length; i++) {
+        if (jpegStream.readByte() == EOF) {
+            std::cerr << "Unexpected EOF in APP segment\n";
+            return false;
+        }
     }
     return true;
 }
@@ -202,12 +208,12 @@ bool fillDHT(JpegDataStream& jpegStream, std::unique_ptr<Header>& header) {
         b1 = jpegStream.readBits(4);
         u1--;
 
-        if (b1 > DHTMHT) {
+        if (b2 > DHTMHT) {
             std::cerr << "Can not check validity of jpeg file: " << "Wrong Huffman table class" << std::endl;
             return false;
         }
 
-        if (b2 > DHTMHT) {
+        if (header->type == SOF0 && b1 > DHTMHT || header->type == SOF2 && b1 > DHTMHT2) {
             std::cerr << "Can not check validity of jpeg file: " << "Huffman table ID overflow" << std::endl;
             return false;
         }
@@ -291,15 +297,14 @@ bool fillSOS(JpegDataStream& jpegStream, std::unique_ptr<Header>& header) {
 
     for (uint8_t i = 0; i < b1; i++) {
         uint8_t id = jpegStream.readByte();
-        if (header->appType == APPE) {
-            id += 1;
-        }
+
+        id -= header->component_offset;
         if (id > header->numberComponents) {
             std::cerr << "Can not check validity of jpeg file: "
                       << "SOS component ID is greater than the total number of components" << std::endl;
             return false;
         }
-        Channel channel = std::move(header->channels[id - 1]);
+        Channel channel = std::move(header->channels[id]);
         if (!channel.frame_completed) {
             std::cerr << "Channel frame was not completed before" << std::endl;
             return false;
@@ -318,7 +323,7 @@ bool fillSOS(JpegDataStream& jpegStream, std::unique_ptr<Header>& header) {
         }
 
         channel.scan_completed = true;
-        header->channels[id - 1] = std::move(channel);
+        header->channels[id] = std::move(channel);
         u1 -= 2;
     }
     if (u1 != 3) {
@@ -414,7 +419,6 @@ std::unique_ptr<Header> scanHeader(JpegDataStream& jpegStream) {
         case APPD:
         case APPE:
         case APPF:
-            header->appType = b2;
             if (!fillApp(jpegStream, header)) {
                 return header;
             }
@@ -487,12 +491,10 @@ void printDQTTable(const Header& header) {
 
 void printSOFTable(const Header& header) {
     std::cout << "======= SOF TABLE ========" << std::endl;
-    std::cout << "Image convention type: ";
-    BYTE_TO_HEX(header.appType);
-    std::cout << std::endl;
     std::cout << "Precision: " << header.precision << std::endl;
     std::cout << "Image width: " << header.width << std::endl;
     std::cout << "Image height: " << header.height << std::endl;
+    std::cout << "Component offset: " << header.component_offset << std::endl;
     std::cout << "Image type: 0x";
     BYTE_TO_HEX(header.type);
     std::cout << std::endl;

@@ -47,8 +47,9 @@ struct HuffmanTable {
 
 struct Header {
     bool isValid;
-    uint8_t type = 0xFF; // Default value to track if type has been changed
-    uint8_t appType;
+    uint8_t type = 0xFF;      // Default value to track if type has been changed
+    uint8_t component_offset; // According to ITU-T81, component ID can go from 0 to 255, if first componentID is non
+                              // zero, we will take the offset
     uint16_t width;
     uint16_t height;
     uint8_t precision;
@@ -56,8 +57,8 @@ struct Header {
     uint16_t restartInterval;
     Progressive progressiveInfo;
     std::array<Quantization, 4> quantTable;
-    std::array<Channel, 4> channels; // Extra channels may be empty
-    std::array<HuffmanTable, 4> huffmanTable;
+    std::array<Channel, 4> channels;          // Extra channels may be empty
+    std::array<HuffmanTable, 8> huffmanTable; // Lot will be empty of progressive not used fully
 };
 
 std::unique_ptr<Header> scanHeader(JpegDataStream& jpegStream);

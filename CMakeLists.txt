@@ -6,14 +6,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    set(CMAKE_CXX_FLAGS_RELEASE "-Ofast -march=native -flto \
+    set(CMAKE_CXX_FLAGS_RELEASE "-Ofast -march=native \
     -fno-rtti -fno-exceptions \
     -funsafe-math-optimizations -ffinite-math-only -fno-math-errno \
     -fno-trapping-math -ffp-contract=fast \
     -funroll-loops -ftree-vectorize -fprefetch-loop-arrays \
-    -falign-functions=32 -falign-loops=32 \
     -mavx2 -mfma -mbmi -mbmi2 -mlzcnt -mpopcnt -DNDEBUG")
-    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3 -fno-math-errno -fdiagnostics-color=always")
+    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3 -fno-math-errno -fdiagnostics-color=always -fsanitize=address,undefined")
 endif()
 
 set(PROJECT_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src)

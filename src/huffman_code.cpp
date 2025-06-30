@@ -252,10 +252,11 @@ bool decodeHuffman(std::unique_ptr<Body>& body) {
     }
 
     // Should be ordered by class and id
-    std::array<HuffmanDecodeTable, 4> decodeTables; // 2 for AC, 2 for DC
+    std::array<HuffmanDecodeTable, 8> decodeTables; // 2 for AC, 2 for DC if SOF0 or 4 for A, 4 for DC if SOF2
 
     for (auto& table : body->header->huffmanTable) {
-        if (table.tableClass > 1 || table.identifier > 1) {
+        if (table.tableClass > DHTMHT || table.identifier > DHTMHT && body->header->type == SOF0 ||
+            table.identifier > DHTMHT2 && body->header->type == SOF2) {
             std::cerr << "Decode error: number of class and identifier in DHT not supported" << std::endl;
             return false;
         }
