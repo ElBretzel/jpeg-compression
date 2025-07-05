@@ -187,7 +187,7 @@ bool decodeMCU(JpegDataStream& stream, MCUComponents& mcu, const HuffmanDecodeTa
             }
 
             // Because of underskip logic, we check overrun a second time
-            if (i >= progressiveInfo.endOfSpectral) {
+            if (i > progressiveInfo.endOfSpectral + 1) {
                 std::cerr << "Decode error: AC decoding MCU subpart overflow" << std::endl;
                 return false;
             }

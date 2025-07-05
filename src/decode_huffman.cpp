@@ -4,6 +4,7 @@ bool generateCode(HuffmanTable& table) {
 
     uint16_t code = 0;
     for (auto& data : table.huffData) {
+        data.huffCode.clear();
         if (!data.symbolCount) {
             code <<= 1;
             continue;
@@ -26,6 +27,7 @@ bool generateCode(HuffmanTable& table) {
 
 // Order Huffman codes and symbols for one Huffman table
 bool fillDecodeTable(const HuffmanTable& table, HuffmanDecodeTable& decodeTable) {
+    decodeTable.fill({});
     for (auto& data : table.huffData) {
         if (data.huffCode.size() != data.huffVal.size()) {
             std::cerr << "Could not generate decode table for table " << table.tableClass << " " << table.identifier

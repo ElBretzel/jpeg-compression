@@ -235,6 +235,10 @@ bool fillDHT(JpegDataStream& jpegStream, std::unique_ptr<Header>& header) {
 
     u1 = (jpegStream.readByte() << 8) | jpegStream.readByte() - 2;
 
+    for (auto& huffTable : header->huffmanTable) {
+        huffTable.completed = false;
+    }
+
     while (u1) {
         b2 = jpegStream.readBits(4);
         b1 = jpegStream.readBits(4);
@@ -441,6 +445,7 @@ std::unique_ptr<Header> scanHeader(JpegDataStream& jpegStream) {
     bool done = false;
 
     do {
+        jpegStream.align();
         auto i = jpegStream.readByte();
         if (i != MARKERSTART) {
             std::cerr << "Can not check validity of jpeg file: " << "Marker not present" << std::endl;

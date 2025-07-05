@@ -24,7 +24,7 @@ bool scanProgressiveMarker(JpegDataStream& jpegStream, std::unique_ptr<Body>& bo
         printDHTTable(*body->header);
         return true;
     case SOS:
-        // dataToImage(body);
+        dataToImage(body);
         if (!fillSOS(jpegStream, body->header)) {
             std::cerr << "Could not read subsequent SOS marker" << std::endl;
             return false;
@@ -127,13 +127,9 @@ std::unique_ptr<Body> fillScans(JpegDataStream& jpegStream, std::unique_ptr<Head
     decodeHuffman(body);
 
     while (!jpegStream.isEOF()) {
-        std::cout << jpegStream.tell() << " - " << std::to_string(jpegStream.bitPos) << " - "
-                  << std::to_string(jpegStream.currentByte) << std::endl;
+        jpegStream.align();
         uint8_t prefix = jpegStream.readByte();
         uint8_t type = jpegStream.readByte();
-        BYTE_TO_HEX(prefix);
-        BYTE_TO_HEX(type);
-        std::cout << std::endl;
 
         if (prefix != MARKERSTART) {
             std::cerr << "Body error: " << "not valid marker prefix: ";
