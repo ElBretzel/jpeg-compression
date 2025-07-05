@@ -1,17 +1,12 @@
 #include "jpeg_header.hpp"
 
-bool fillDecodeTable(std::unique_ptr<Header>& header) {
-
-    if (!generateCode(header->huffmanTable)) {
-        return false;
-    }
+bool fillDT(std::unique_ptr<Header>& header) {
 
     // Should be ordered by class and id
     uint8_t n = header->type == SOF0 ? 2 : 4;
-
     for (auto& table : header->huffmanTable) {
-        if (table.tableClass > DHTMHT || table.identifier > DHTMHT && header->type == SOF0 ||
-            table.identifier > DHTMHT2 && header->type == SOF2) {
+        if ((table.tableClass > DHTMHT || table.identifier > DHTMHT) && header->type == SOF0 ||
+            (table.identifier > DHTMHT2 || table.tableClass > DHTMHT2) && header->type == SOF2) {
             std::cerr << "Decode error: number of class and identifier in DHT not supported" << std::endl;
             return false;
         }
@@ -300,6 +295,9 @@ bool fillDHT(JpegDataStream& jpegStream, std::unique_ptr<Header>& header) {
         }
 
         huffTable.completed = true;
+
+        generateCode(huffTable);
+
         header->huffmanTable[b2 * 2 + b1] = std::move(huffTable);
     }
 
@@ -309,7 +307,7 @@ bool fillDHT(JpegDataStream& jpegStream, std::unique_ptr<Header>& header) {
         return false;
     }
 
-    fillDecodeTable(header);
+    fillDT(header);
 
     return true;
 }

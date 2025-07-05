@@ -34,8 +34,8 @@ class JpegDataStream {
         return file.tellg();
     }
     std::uint8_t bitPos;
+    uint8_t currentByte;
 
   private:
     std::ifstream file;
-    uint8_t currentByte;
 };

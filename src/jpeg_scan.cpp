@@ -123,14 +123,17 @@ std::unique_ptr<Body> fillScans(JpegDataStream& jpegStream, std::unique_ptr<Head
     }
 
     // First AC DC
+
     decodeHuffman(body);
-    printSOSTable(*body->header);
 
     while (!jpegStream.isEOF()) {
-        jpegStream.align();
-        std::cout << jpegStream.tell() << " - " << std::to_string(jpegStream.bitPos) << std::endl;
+        std::cout << jpegStream.tell() << " - " << std::to_string(jpegStream.bitPos) << " - "
+                  << std::to_string(jpegStream.currentByte) << std::endl;
         uint8_t prefix = jpegStream.readByte();
         uint8_t type = jpegStream.readByte();
+        BYTE_TO_HEX(prefix);
+        BYTE_TO_HEX(type);
+        std::cout << std::endl;
 
         if (prefix != MARKERSTART) {
             std::cerr << "Body error: " << "not valid marker prefix: ";

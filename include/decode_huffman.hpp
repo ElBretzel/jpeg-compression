@@ -8,5 +8,5 @@
 // this structure may take lot of memory space
 using HuffmanDecodeTable = std::array<std::unordered_map<uint16_t, uint8_t>, 16>;
 
-bool generateCode(std::array<HuffmanTable, 8>& tables);
+bool generateCode(HuffmanTable& tables);
 bool fillDecodeTable(const HuffmanTable& table, HuffmanDecodeTable& decodeTable);

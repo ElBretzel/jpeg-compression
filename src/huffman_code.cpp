@@ -150,111 +150,49 @@ bool decodeMCU(JpegDataStream& stream, MCUComponents& mcu, const HuffmanDecodeTa
                 if (acInfo == 0xFF) {
                     return false;
                 }
+                uint8_t paddingZero = acInfo >> 4;
+                uint8_t acLength = acInfo & 0x0F;
 
-                for (uint i = progressiveInfo.startOfSpectral; i <= progressiveInfo.endOfSpectral; ++i) {
-                    uint8_t symbol = decodeSymbol(stream, ac);
-                    if (symbol == (uint8_t)-1) {
-                        std::cout << "Error - Invalid AC value\n";
-                        return false;
-                    }
-
-                    uint8_t numZeroes = symbol >> 4;
-                    uint8_t coeffLength = symbol & 0x0F;
-
-                    if (coeffLength != 0) {
-                        if (i + numZeroes > progressiveInfo.endOfSpectral) {
-                            std::cout << "Error - Zero run-length exceeded spectral selection\n";
-                            return false;
-                        }
-                        for (uint j = 0; j < numZeroes; ++j, ++i) {
-                            mcu[reverseZigZagMap[i]] = 0;
-                        }
-                        if (coeffLength > 10) {
-                            std::cout << "Error - AC coefficient length greater than 10\n";
-                            return false;
-                        }
-
-                        int coeff = stream.readBits(coeffLength);
-                        if (coeff == -1) {
-                            std::cout << "Error - Invalid AC value\n";
-                            return false;
-                        }
-                        if (coeff < (1 << (coeffLength - 1))) {
-                            coeff -= (1 << coeffLength) - 1;
-                        }
-                        mcu[reverseZigZagMap[i]] = coeff << progressiveInfo.successiveBitLow;
+                if (acLength == 0) {
+                    if (paddingZero == ZLR) {
+                        // Avoid under skipping 1 bit
+                        i += 16;
+                        continue;
                     } else {
-                        if (numZeroes == 15) {
-                            if (i + numZeroes > progressiveInfo.endOfSpectral) {
-                                std::cout << "Error - Zero run-length exceeded spectral selection\n";
-                                return false;
-                            }
-                            for (uint j = 0; j < numZeroes; ++j, ++i) {
-                                mcu[reverseZigZagMap[i]] = 0;
-                            }
-                        } else {
-                            band = (1 << numZeroes) - 1;
-                            uint extraSkips = stream.readBits(numZeroes);
-                            if (extraSkips == (uint)-1) {
-                                std::cout << "Error - Invalid AC value\n";
-                                return false;
-                            }
-                            band += extraSkips;
-                            break;
+                        band = (1 << paddingZero) - 1;
+                        auto extension = stream.readBits(paddingZero, true);
+                        if (extension == 0xFFFF) {
+                            std::cerr << "Decode Huffman progressive: extension field corrupted" << std::endl;
                         }
+                        band += extension;
+                        break;
                     }
+                    std::cerr << "Decode error: Corrupted AC byte sequence" << std::endl;
+                    return false;
                 }
+
+                i += paddingZero;
+                if (i >= progressiveInfo.endOfSpectral) {
+                    std::cerr << "Decode error: AC decoding MCU subpart overflow" << std::endl;
+                    return false;
+                }
+
+                int16_t acSymbol = 0;
+                if (!getACDCSymbol(stream, acSymbol, acLength)) {
+                    return false;
+                }
+
+                mcu[reverseZigZagMap[i]] = acSymbol << progressiveInfo.successiveBitLow;
+                i++;
             }
 
-            //     uint8_t paddingZero = acInfo >> 4;
-            //     uint8_t acLength = acInfo & 0x0F;
-
-            //     if (acLength == 0) {
-            //         if (paddingZero == ZLR) {
-            //             // Avoid under skipping 1 bit
-            //             i += 16;
-            //             if (i > progressiveInfo.endOfSpectral) {
-            //                 break;
-            //             }
-            //             continue;
-            //         } else {
-            //             band = (1 << paddingZero) - 1;
-            //             auto extension = stream.readBits(paddingZero, true);
-            //             if (extension == 0xFFFF) {
-            //                 std::cerr << "Decode Huffman progressive: extension field corrupted" << std::endl;
-            //             }
-            //             band += extension;
-            //             break;
-            //         }
-            //         std::cerr << "Decode error: Corrupted AC byte sequence" << std::endl;
-            //         return false;
-            //     }
-
-            //     i += paddingZero;
-            //     if (i > progressiveInfo.endOfSpectral) {
-            //         break;
-            //     }
-            //     if (i >= progressiveInfo.endOfSpectral) {
-            //         std::cerr << "Decode error: AC decoding MCU subpart overflow" << std::endl;
-            //         return false;
-            //     }
-
-            //     int16_t acSymbol = 0;
-            //     if (!getACDCSymbol(stream, acSymbol, acLength)) {
-            //         return false;
-            //     }
-
-            //     mcu[reverseZigZagMap[i]] = acSymbol << progressiveInfo.successiveBitLow;
-            //     i++;
-            // }
-
-            // // Because of underskip logic, we check overrun a second time
-            // if (i >= MCUX) {
-            //     std::cerr << "Decode error: AC decoding MCU subpart overflow" << std::endl;
-            //     return false;
-            // }
-
+            // Because of underskip logic, we check overrun a second time
+            if (i >= MCUX) {
+                std::cerr << "Decode error: AC decoding MCU subpart overflow" << std::endl;
+                return false;
+            }
             return true;
+
         } else if (progressiveInfo.successiveBitHigh != 0 && progressiveInfo.startOfSpectral != 0) {
             // Other visits
             return true;
@@ -267,6 +205,20 @@ bool decodeHuffman(std::unique_ptr<Body>& body) {
 
     auto mcus = std::move(body->mcu);
     uint8_t n = body->header->type == SOF0 ? 2 : 4;
+
+    // for (auto& table : body->header->huffmanTable) {
+    //     if ((table.tableClass > DHTMHT || table.identifier > DHTMHT) && body->header->type == SOF0 ||
+    //         (table.identifier > DHTMHT2 || table.tableClass > DHTMHT2) && body->header->type == SOF2) {
+    //         std::cerr << "Decode error: number of class and identifier in DHT not supported" << std::endl;
+    //         return false;
+    //     }
+    //     if (!table.completed) {
+    //         continue;
+    //     }
+    //     if (!fillDecodeTable(table, body->header->decodeTables[table.tableClass * n + table.identifier])) {
+    //         return false;
+    //     }
+    // }
 
     std::array<int16_t, 4> previousDC{};
     std::size_t band = 0;

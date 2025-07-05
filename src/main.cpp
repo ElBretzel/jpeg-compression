@@ -3,7 +3,7 @@
 #include "jpeg_transform.hpp"
 
 void prelude() {
-    JpegDataStream jpegStream = JpegDataStream("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/gorilla_2.jpg");
+    JpegDataStream jpegStream = JpegDataStream("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/gorilla.jpg");
     auto header = scanHeader(jpegStream);
     printHeader(*header);
     auto body = fillScans(jpegStream, header);
