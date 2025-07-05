@@ -1,5 +1,92 @@
 #include "jpeg_scan.hpp"
 
+bool scanProgressiveMarker(JpegDataStream& jpegStream, std::unique_ptr<Body>& body, uint8_t type) {
+    switch (type) {
+    case DRI:
+        if (!fillRestart(jpegStream, body->header)) {
+            std::cerr << "Body error: " << "could not read subsequent restart interval" << std::endl;
+            return false;
+        }
+        printDRITable(*body->header);
+        return true;
+    case DQT:
+        if (!fillDQT(jpegStream, body->header->quantTable)) {
+            std::cerr << "Body error: " << "could not read subsequent DQT" << std::endl;
+            return false;
+        }
+        printDQTTable(*body->header);
+        return true;
+    case DHT:
+        if (!fillDHT(jpegStream, body->header)) {
+            std::cerr << "Body error: " << "could not read subsequent DHT" << std::endl;
+            return false;
+        }
+        printDHTTable(*body->header);
+        return true;
+    case SOS:
+        if (!fillSOS(jpegStream, body->header)) {
+            std::cerr << "Could not read subsequent SOS marker" << std::endl;
+            return false;
+        }
+        if (!decodeHuffman(body)) {
+            std::cerr << "Could not decode subsequent Huffman data" << std::endl;
+            return false;
+        }
+        printSOSTable(*body->header);
+        break;
+    default:
+        std::cerr << "Body error SOF2: " << "data invalid marker: ";
+        BYTE_TO_HEX(type);
+        std::cerr << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool scanMarker(JpegDataStream& jpegStream, std::unique_ptr<Body>& body, uint8_t type) {
+    switch (type) {
+    case RST0:
+    case RST1:
+    case RST2:
+    case RST3:
+    case RST4:
+    case RST5:
+    case RST6:
+    case RST7:
+        return true;
+    case APP0:
+    case APP1:
+    case APP2:
+    case APP3:
+    case APP4:
+    case APP5:
+    case APP6:
+    case APP7:
+    case APP8:
+    case APP9:
+    case APPA:
+    case APPB:
+    case APPC:
+    case APPD:
+    case APPE:
+    case APPF:
+        return fillApp(jpegStream, body->header);
+    case COM:
+        return fillCom(jpegStream, body->header);
+    case MARKERSTART:
+        return true;
+    default:
+        if (body->header->type == SOF2) {
+            return scanProgressiveMarker(jpegStream, body, type);
+        } else {
+            std::cerr << "Body error: " << "data invalid marker: ";
+            BYTE_TO_HEX(type);
+            std::cerr << std::endl;
+            return false;
+        }
+    }
+}
+
 std::unique_ptr<Body> fillScans(JpegDataStream& jpegStream, std::unique_ptr<Header>& header) {
     auto body = std::make_unique<Body>(jpegStream);
     body->header = std::move(header);
@@ -28,79 +115,27 @@ std::unique_ptr<Body> fillScans(JpegDataStream& jpegStream, std::unique_ptr<Head
 
     // First AC DC
     decodeHuffman(body);
+    printSOSTable(*body->header);
 
-    uint8_t b1;
-    uint8_t b2;
+    // Progressive loop only
+    while (!jpegStream.isEOF()) {
+        jpegStream.align(); // In case stream ends not aligned
+        uint8_t prefix = jpegStream.readByte();
+        uint8_t type = jpegStream.readByte();
 
-    // while (!jpegStream.isEOF()) {
-    // }
-
-    // b1 = jpegStream.readByte();
-    // bool EOIRead = false;
-    // while (!jpegStream.isEOF()) {
-
-    //     b2 = b1;
-    //     b1 = jpegStream.readByte();
-
-    //     if (b2 == MARKERSTART) {
-    //         if (b1 == EOI) {
-    //             EOIRead = true;
-    //             break;
-    //         } else if (b1 >= RST0 && b1 <= RST7) {
-    //             b1 = jpegStream.readByte();
-    //         } else if (b1 == MARKERSTART) {
-    //         } else if (!b1) {
-    //             body->data.addByte(b2);
-    //             b1 = read_byte();
-    //         } else {
-    //             std::cerr << "Body error: " << "data invalid marker: ";
-    //             BYTE_TO_HEX(b1);
-    //             std::cerr << std::endl;
-    //             return body;
-    //         }
-    //     } else {
-    //         body->data.addByte(b2);
-    //     }
-    // }
-
-    // if (!EOIRead) {
-    //     return body;
-    // }
+        if (prefix != MARKERSTART) {
+            std::cerr << "Body error: " << "not valid marker prefix: ";
+            BYTE_TO_HEX(prefix);
+            std::cerr << std::endl;
+            return body;
+        }
+        if (type == EOI) {
+            break;
+        } else if (!scanMarker(jpegStream, body, type)) {
+            return body;
+        }
+    }
 
     body->isValid = true;
     return body;
 }
-
-// std::unique_ptr<Header> writeHeader(std::ifstream& ppmFile, std::unique_ptr<Body>& body) {
-//     // Some utility variables
-//     uint8_t b1;
-//     uint8_t b2;
-//     uint16_t u1;
-
-//     auto header = std::make_unique<Header>();
-//     header->isValid = false;
-
-//     if (!ppmFile.is_open()) {
-//         std::cerr << "Can not check validity of jpeg file: " << "file can't be opened" << std::endl;
-//         return header;
-//     }
-//     auto read_byte = [&ppmFile]() {
-//         return static_cast<uint8_t>(ppmFile.get());
-//     };
-//     body->data.addByte(MARKERSTART);
-//     body->data.addByte(SOI);
-
-//     header->appType = APP0;
-//     body->data.addByte(MARKERSTART);
-//     body->data.addByte(header->appType);
-//     body->data.addByte(0x00);
-
-//     body->header->restartInterval = 0;
-//     body->data.addByte(MARKERSTART);
-//     body->data.addByte(DRI);
-//     body->data.addByte(DRILEN);
-//     body->data.addByte(static_cast<uint8_t>(body->header->restartInterval >> 8));
-//     body->data.addByte(static_cast<uint8_t>(body->header->restartInterval & 0xFF));
-
-//     return header;
-// }

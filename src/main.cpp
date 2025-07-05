@@ -5,10 +5,10 @@
 #include "quantization.hpp"
 
 void writePPM(std::unique_ptr<Body>& image, const std::string& filename) {
-    if (!image || !image->header || !image->mcu || !image->isValid || !image->mcu->isValid) {
-        std::cout << "Error - Invalid image data\n";
-        return;
-    }
+    // if (!image || !image->header || !image->mcu || !image->isValid || !image->mcu->isValid) {
+    //     std::cout << "Error - Invalid image data\n";
+    //     return;
+    // }
 
     std::cout << "Writing " << filename << "...\n";
 
@@ -65,16 +65,16 @@ void writePPM(std::unique_ptr<Body>& image, const std::string& filename) {
 }
 
 void prelude() {
-    JpegDataStream jpegStream = JpegDataStream("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/cat.jpg");
-
+    JpegDataStream jpegStream = JpegDataStream("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/prog/frog.jpg");
     auto header = scanHeader(jpegStream);
+    printHeader(*header);
     auto body = fillScans(jpegStream, header);
+    std::cout << "Body valid: " << static_cast<bool>(body->isValid) << std::endl;
+    std::cout << "MCU valid: " << static_cast<bool>(body->mcu->isValid) << std::endl;
     header = nullptr; // Ownership moved into body
     dequantize(body);
     inverseDCT(body);
     convertMCUToRGB(body);
-    std::cout << "Body valid: " << static_cast<bool>(body->isValid) << std::endl;
-    std::cout << "MCU valid: " << static_cast<bool>(body->mcu->isValid) << std::endl;
     writePPM(body, "/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/out.ppm");
 }
 

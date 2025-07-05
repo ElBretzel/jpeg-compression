@@ -1,5 +1,30 @@
 #include "jpeg_header.hpp"
 
+bool fillDecodeTable(std::unique_ptr<Header>& header) {
+
+    if (!generateCode(header->huffmanTable)) {
+        return false;
+    }
+
+    // Should be ordered by class and id
+    uint8_t n = header->type == SOF0 ? 2 : 4;
+
+    for (auto& table : header->huffmanTable) {
+        if (table.tableClass > DHTMHT || table.identifier > DHTMHT && header->type == SOF0 ||
+            table.identifier > DHTMHT2 && header->type == SOF2) {
+            std::cerr << "Decode error: number of class and identifier in DHT not supported" << std::endl;
+            return false;
+        }
+        if (!table.completed) {
+            continue;
+        }
+        if (!fillDecodeTable(table, header->decodeTables[table.tableClass * n + table.identifier])) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool fillDQT(JpegDataStream& jpegStream, std::array<Quantization, 4>& tables) {
     uint8_t b1;
     uint8_t b2;
@@ -196,6 +221,18 @@ bool fillApp(JpegDataStream& jpegStream, std::unique_ptr<Header>& header) {
     return true;
 }
 
+bool fillCom(JpegDataStream& jpegStream, std::unique_ptr<Header>& header) {
+    uint16_t length = (jpegStream.readByte() << 8) | jpegStream.readByte() - 2;
+
+    for (uint16_t i = 0; i < length; i++) {
+        if (jpegStream.readByte() == EOF) {
+            std::cerr << "Unexpected EOF in COM segment\n";
+            return false;
+        }
+    }
+    return true;
+}
+
 bool fillDHT(JpegDataStream& jpegStream, std::unique_ptr<Header>& header) {
     uint8_t b1;
     uint8_t b2;
@@ -241,6 +278,8 @@ bool fillDHT(JpegDataStream& jpegStream, std::unique_ptr<Header>& header) {
             code.symbolCount = jpegStream.readByte();
             code.huffVal.reserve(code.symbolCount);
             code.huffCode.reserve(code.symbolCount);
+            code.huffCode.clear();
+            code.huffVal.clear();
             totalSymbol += code.symbolCount;
             huffTable.huffData[i] = std::move(code);
         }
@@ -270,6 +309,8 @@ bool fillDHT(JpegDataStream& jpegStream, std::unique_ptr<Header>& header) {
         return false;
     }
 
+    fillDecodeTable(header);
+
     return true;
 }
 
@@ -290,6 +331,10 @@ bool fillSOS(JpegDataStream& jpegStream, std::unique_ptr<Header>& header) {
         std::cerr << "Can not check validity of jpeg file: "
                   << "SOS can not store channels coding" << std::endl;
         return false;
+    }
+
+    for (uint8_t i = 0; i < header->numberComponents; i++) {
+        header->channels[i].scan_completed = false;
     }
 
     // For simplicity, we will ignore the rule of following same order of components ID with the SOF
@@ -317,7 +362,11 @@ bool fillSOS(JpegDataStream& jpegStream, std::unique_ptr<Header>& header) {
         channel.huffDCId = jpegStream.readBits(4);
         channel.huffACId = jpegStream.readBits(4);
 
-        if (channel.huffACId > DHTMHT || channel.huffDCId > DHTMHT) {
+        if (header->type == SOF0 && (channel.huffACId > DHTMHT || channel.huffDCId > DHTMHT)) {
+            std::cerr << "Can not check validity of jpeg file: " << "SOS channel Huffman ID overflow" << std::endl;
+            return false;
+        }
+        if (header->type == SOF2 && (channel.huffACId > DHTMHT2 || channel.huffDCId > DHTMHT2)) {
             std::cerr << "Can not check validity of jpeg file: " << "SOS channel Huffman ID overflow" << std::endl;
             return false;
         }
@@ -423,6 +472,10 @@ std::unique_ptr<Header> scanHeader(JpegDataStream& jpegStream) {
                 return header;
             }
             break;
+        case COM:
+            if (!fillCom(jpegStream, header)) {
+                return header;
+            }
         case DQT:
             if (!fillDQT(jpegStream, header->quantTable)) {
                 return header;
@@ -504,12 +557,9 @@ void printSOFTable(const Header& header) {
         const auto& ch = header.channels[i];
         std::cout << "Channel ID: " << i << std::endl;
         std::cout << "  Frame completed: " << ch.frame_completed << std::endl;
-        std::cout << "  Scan completed: " << ch.scan_completed << std::endl;
         std::cout << "  Horizontal sampling: " << static_cast<int>(ch.horizontalSampling) << std::endl;
         std::cout << "  Vertical sampling: " << static_cast<int>(ch.verticalSampling) << std::endl;
         std::cout << "  Quantization table ID: " << static_cast<int>(ch.quantizationId) << std::endl;
-        std::cout << "  AC Huffman table ID: " << static_cast<int>(ch.huffACId) << std::endl;
-        std::cout << "  DC Huffman table ID: " << static_cast<int>(ch.huffDCId) << std::endl;
     }
 }
 
@@ -551,6 +601,24 @@ void printDHTTable(const Header& header) {
             std::cout << "]; ";
         }
         std::cout << "}" << std::endl;
+    }
+}
+
+void printSOSTable(const Header& header) {
+    std::cout << "======= SOS TABLE ========" << std::endl;
+    std::cout << "Start of spectral: " << static_cast<int>(header.progressiveInfo.startOfSpectral) << std::endl;
+    std::cout << "End of spectral: " << static_cast<int>(header.progressiveInfo.endOfSpectral) << std::endl;
+    std::cout << "Successive bit high: " << static_cast<int>(header.progressiveInfo.successiveBitHigh) << std::endl;
+    std::cout << "Successive bit low: " << static_cast<int>(header.progressiveInfo.successiveBitLow) << std::endl;
+    std::cout << "Number of channels: " << static_cast<int>(header.numberComponents) << std::endl;
+
+    for (const auto& ch : header.channels) {
+        if (!ch.scan_completed) {
+            continue;
+        }
+        std::cout << "Channel ID: " << static_cast<int>(ch.horizontalSampling) << std::endl;
+        std::cout << "  DC Huffman table ID: " << static_cast<int>(ch.huffDCId) << std::endl;
+        std::cout << "  AC Huffman table ID: " << static_cast<int>(ch.huffACId) << std::endl;
     }
 }
 

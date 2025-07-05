@@ -30,6 +30,10 @@ class JpegDataStream {
     void align();
     bool isEOF();
 
+    std::streampos tell() {
+        return file.tellg();
+    }
+
   private:
     std::ifstream file;
     std::uint8_t bitPos;

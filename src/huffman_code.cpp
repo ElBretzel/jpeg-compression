@@ -1,49 +1,5 @@
 #include "huffman_code.hpp"
 
-bool generateCode(std::unique_ptr<Body>& body) {
-
-    for (auto& table : body->header->huffmanTable) {
-        uint16_t code = 0;
-        for (auto& data : table.huffData) {
-            if (!data.symbolCount) {
-                code <<= 1;
-                continue;
-            }
-
-            if (data.symbolCount > (1 << data.codeLength)) {
-                std::cerr << "Can not generate code: "
-                          << "There is too many symbols to generate code of fixed length" << std::endl;
-                return false;
-            }
-            for (uint8_t i = 0; i < data.symbolCount; i++) {
-                data.huffCode.push_back(code);
-                code++;
-            }
-            code <<= 1;
-        }
-    }
-
-    return true;
-}
-
-// Order Huffman codes and symbols for one Huffman table
-bool fillDecodeTable(const HuffmanTable& table, HuffmanDecodeTable& decodeTable) {
-    for (auto& data : table.huffData) {
-        if (data.huffCode.size() != data.huffVal.size()) {
-            std::cerr << "Could not generate decode table for table " << table.tableClass << " " << table.identifier
-                      << " : Size mitchmatch" << std::endl;
-            return false;
-        }
-
-        for (uint8_t i = 0; i < data.symbolCount; i++) {
-            uint16_t code = data.huffCode[i];
-            uint8_t symbol = data.huffVal[i];
-            decodeTable[data.codeLength - 1][code] = symbol;
-        }
-    }
-    return true;
-}
-
 uint8_t decodeSymbol(JpegDataStream& stream, const HuffmanDecodeTable& decodeTable) {
 
     uint16_t code = 0;
@@ -86,7 +42,7 @@ bool getACDCSymbol(JpegDataStream& stream, int16_t& symbol, const uint8_t length
 }
 
 bool decodeMCU(JpegDataStream& stream, MCUComponents& mcu, const HuffmanDecodeTable& dc, const HuffmanDecodeTable& ac,
-               int16_t& previousDC, uint8_t type, Progressive& progressiveInfo, std::size_t band) {
+               int16_t& previousDC, uint8_t type, Progressive& progressiveInfo, std::size_t& band) {
 
     if (type == SOF0) {
         // DC decoding
@@ -202,6 +158,9 @@ bool decodeMCU(JpegDataStream& stream, MCUComponents& mcu, const HuffmanDecodeTa
                     if (paddingZero == ZLR) {
                         // Avoid under skipping 1 bit
                         i += 16;
+                        if (i > progressiveInfo.endOfSpectral) {
+                            break;
+                        }
                         continue;
                     } else {
                         band = (1 << paddingZero) - 1;
@@ -217,6 +176,9 @@ bool decodeMCU(JpegDataStream& stream, MCUComponents& mcu, const HuffmanDecodeTa
                 }
 
                 i += paddingZero;
+                if (i > progressiveInfo.endOfSpectral) {
+                    break;
+                }
                 if (i >= MCUX) {
                     std::cerr << "Decode error: AC decoding MCU subpart overflow" << std::endl;
                     return false;
@@ -247,32 +209,13 @@ bool decodeMCU(JpegDataStream& stream, MCUComponents& mcu, const HuffmanDecodeTa
 }
 
 bool decodeHuffman(std::unique_ptr<Body>& body) {
-    if (!generateCode(body)) {
-        return false;
-    }
-
-    // Should be ordered by class and id
-    std::array<HuffmanDecodeTable, 8> decodeTables; // 2 for AC, 2 for DC if SOF0 or 4 for A, 4 for DC if SOF2
-
-    for (auto& table : body->header->huffmanTable) {
-        if (table.tableClass > DHTMHT || table.identifier > DHTMHT && body->header->type == SOF0 ||
-            table.identifier > DHTMHT2 && body->header->type == SOF2) {
-            std::cerr << "Decode error: number of class and identifier in DHT not supported" << std::endl;
-            return false;
-        }
-        if (!table.completed) {
-            continue;
-        }
-        HuffmanDecodeTable& decodeTable = decodeTables[table.tableClass * 2 + table.identifier];
-        if (!fillDecodeTable(table, decodeTable)) {
-            return false;
-        }
-    }
 
     auto mcus = std::move(body->mcu);
+    uint8_t n = body->header->type == SOF0 ? 2 : 4;
 
     std::array<int16_t, 4> previousDC{};
     std::size_t band = 0;
+    std::cout << "Huffman decoding: " << body->data.tell() << std::endl;
     for (std::size_t i = 0; i < mcus->mcuWidth * mcus->mcuHeight; i++) {
 
         if (body->header->restartInterval != 0 && i % body->header->restartInterval == 0) {
@@ -283,9 +226,9 @@ bool decodeHuffman(std::unique_ptr<Body>& body) {
         auto& mcuData = mcus->mcuData[i];
         for (uint8_t j = 0; j < body->header->numberComponents; j++) {
             if (body->header->channels[j].scan_completed) {
-                if (!decodeMCU(body->data, mcuData[j], decodeTables[body->header->channels[j].huffDCId],
-                               decodeTables[body->header->channels[j].huffACId + 2], previousDC[j], body->header->type,
-                               body->header->progressiveInfo, band)) {
+                if (!decodeMCU(body->data, mcuData[j], body->header->decodeTables[body->header->channels[j].huffDCId],
+                               body->header->decodeTables[body->header->channels[j].huffACId + n], previousDC[j],
+                               body->header->type, body->header->progressiveInfo, band)) {
                     body->mcu = std::move(mcus);
                     std::cerr << "Huffman decoding error. Stopping early." << std::endl;
                     return false;

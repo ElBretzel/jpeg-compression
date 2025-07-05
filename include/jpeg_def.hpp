@@ -1,6 +1,8 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
+#include <vector>
 
 #define HEX_DIGIT(n) ((n) < 10 ? '0' + (n) : 'A' + ((n) - 10))
 
@@ -27,6 +29,7 @@ constexpr uint8_t APPC = 0xEC;
 constexpr uint8_t APPD = 0xED;
 constexpr uint8_t APPE = 0xEE;
 constexpr uint8_t APPF = 0xEF;
+constexpr uint8_t COM = 0xFE;
 constexpr uint8_t DQT = 0xDB;
 constexpr uint8_t DQTMI = 0x03;
 constexpr uint8_t DQTMP = 0x01;
@@ -50,6 +53,12 @@ constexpr uint8_t SOSSUCCBITMAX = 0x0D;
 constexpr uint8_t EOS = 0x3F;
 constexpr uint8_t DRI = 0xDD;
 constexpr uint8_t RST0 = 0xD0;
+constexpr uint8_t RST1 = 0xD1;
+constexpr uint8_t RST2 = 0xD2;
+constexpr uint8_t RST3 = 0xD3;
+constexpr uint8_t RST4 = 0xD4;
+constexpr uint8_t RST5 = 0xD5;
+constexpr uint8_t RST6 = 0xD6;
 constexpr uint8_t RST7 = 0xD7;
 constexpr uint16_t DRILEN = 0x0004;
 constexpr uint8_t EOI = 0xD9;
@@ -64,3 +73,41 @@ constexpr uint8_t reverseZigZagMap[] = {0,  1,  8,  16, 9,  2,  3,  10, 17, 24, 
                                         12, 19, 26, 33, 40, 48, 41, 34, 27, 20, 13, 6,  7,  14, 21, 28,
                                         35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23, 30, 37, 44, 51,
                                         58, 59, 52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63};
+
+struct Quantization {
+    uint8_t tableId;        // between 0 and 3
+    uint8_t tablePrecision; // 0 or 1
+    bool completed = false;
+    std::array<uint8_t, 64> values; // FIXME if we want to support other MCU sizes
+};
+
+struct Progressive {
+    uint8_t startOfSpectral;
+    uint8_t endOfSpectral;
+    uint8_t successiveBitHigh;
+    uint8_t successiveBitLow;
+};
+
+struct Channel {
+    uint8_t horizontalSampling; // between 1 and 4
+    uint8_t verticalSampling;   // between 1 and 4
+    uint8_t quantizationId;     // between 0 and 3
+    uint8_t huffACId;           // 0 or 1
+    uint8_t huffDCId;           // 0 or 1
+    bool frame_completed = false;
+    bool scan_completed = false;
+};
+
+struct HuffmanData {
+    uint8_t codeLength;
+    uint8_t symbolCount;
+    std::vector<uint16_t> huffCode; // huffCode vector has symbolCount memory space reserved
+    std::vector<uint8_t> huffVal;   // huffVal vector has symbolCount memory space reserved
+};
+
+struct HuffmanTable {
+    uint8_t tableClass; // 0 or 1
+    uint8_t identifier; // 0 or 1
+    bool completed = false;
+    std::array<HuffmanData, 16> huffData;
+};

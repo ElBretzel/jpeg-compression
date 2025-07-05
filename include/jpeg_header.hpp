@@ -1,49 +1,8 @@
 #pragma once
 
+#include "decode_huffman.hpp"
 #include "jpeg_data_stream.hpp"
-#include "jpeg_def.hpp"
-#include <array>
-#include <iostream>
 #include <memory>
-#include <vector>
-
-struct Quantization {
-    uint8_t tableId;        // between 0 and 3
-    uint8_t tablePrecision; // 0 or 1
-    bool completed = false;
-    std::array<uint8_t, 64> values; // FIXME if we want to support other MCU sizes
-};
-
-struct Progressive {
-    uint8_t startOfSpectral;
-    uint8_t endOfSpectral;
-    uint8_t successiveBitHigh;
-    uint8_t successiveBitLow;
-};
-
-struct Channel {
-    uint8_t horizontalSampling; // between 1 and 4
-    uint8_t verticalSampling;   // between 1 and 4
-    uint8_t quantizationId;     // between 0 and 3
-    uint8_t huffACId;           // 0 or 1
-    uint8_t huffDCId;           // 0 or 1
-    bool frame_completed = false;
-    bool scan_completed = false;
-};
-
-struct HuffmanData {
-    uint8_t codeLength;
-    uint8_t symbolCount;
-    std::vector<uint16_t> huffCode; // huffCode vector has symbolCount memory space reserved
-    std::vector<uint8_t> huffVal;   // huffVal vector has symbolCount memory space reserved
-};
-
-struct HuffmanTable {
-    uint8_t tableClass; // 0 or 1
-    uint8_t identifier; // 0 or 1
-    bool completed = false;
-    std::array<HuffmanData, 16> huffData;
-};
 
 struct Header {
     bool isValid;
@@ -59,8 +18,20 @@ struct Header {
     std::array<Quantization, 4> quantTable;
     std::array<Channel, 4> channels;          // Extra channels may be empty
     std::array<HuffmanTable, 8> huffmanTable; // Lot will be empty of progressive not used fully
+    std::array<HuffmanDecodeTable, 8>
+        decodeTables; // Ugly but lot of refactoring needs to be done to move inside HuffmanTable
 };
 
 std::unique_ptr<Header> scanHeader(JpegDataStream& jpegStream);
 void printHeader(const Header& header);
 bool fillSOS(JpegDataStream& jpegStream, std::unique_ptr<Header>& header);
+bool fillDHT(JpegDataStream& jpegStream, std::unique_ptr<Header>& header);
+bool fillRestart(JpegDataStream& jpegStream, std::unique_ptr<Header>& header);
+bool fillDQT(JpegDataStream& jpegStream, std::array<Quantization, 4>& tables);
+bool fillCom(JpegDataStream& jpegStream, std::unique_ptr<Header>& header);
+bool fillApp(JpegDataStream& jpegStream, std::unique_ptr<Header>& header);
+void printSOSTable(const Header& header);
+void printDQTTable(const Header& header);
+void printSOFTable(const Header& header);
+void printDRITable(const Header& header);
+void printDHTTable(const Header& header);

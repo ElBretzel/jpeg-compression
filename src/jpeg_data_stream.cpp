@@ -20,6 +20,8 @@ uint8_t JpegDataStream::readBit(bool scan) {
                     currentByte = file.get();
                 } else {
                     std::cerr << "Unexpected marker during readBit scan" << std::endl;
+                    BYTE_TO_HEX(currentMarker);
+                    std::cerr << std::endl;
                     break;
                 }
             }
@@ -33,7 +35,7 @@ uint8_t JpegDataStream::readBit(bool scan) {
 
 uint64_t JpegDataStream::readBits(uint8_t length, bool scan) {
 
-    uint16_t u1 = 0;
+    uint64_t u1 = 0;
     for (uint8_t i = 0; i < length; i++) {
         uint8_t b1 = readBit(scan);
         if (b1 == 0xFF) {

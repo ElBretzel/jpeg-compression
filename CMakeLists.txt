@@ -21,6 +21,7 @@ set(PROJECT_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
 add_executable(a.out
     ${PROJECT_SOURCE_DIR}/main.cpp
     ${PROJECT_SOURCE_DIR}/huffman_code.cpp
+    ${PROJECT_SOURCE_DIR}/decode_huffman.cpp
     ${PROJECT_SOURCE_DIR}/jpeg_header.cpp
     ${PROJECT_SOURCE_DIR}/jpeg_scan.cpp
     ${PROJECT_SOURCE_DIR}/quantization.cpp
