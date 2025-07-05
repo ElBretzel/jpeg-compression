@@ -172,7 +172,7 @@ bool decodeMCU(JpegDataStream& stream, MCUComponents& mcu, const HuffmanDecodeTa
                 }
 
                 i += paddingZero;
-                if (i >= progressiveInfo.endOfSpectral) {
+                if (i > progressiveInfo.endOfSpectral) {
                     std::cerr << "Decode error: AC decoding MCU subpart overflow" << std::endl;
                     return false;
                 }
@@ -192,7 +192,6 @@ bool decodeMCU(JpegDataStream& stream, MCUComponents& mcu, const HuffmanDecodeTa
                 return false;
             }
             return true;
-
         } else if (progressiveInfo.successiveBitHigh != 0 && progressiveInfo.startOfSpectral != 0) {
             // Other visits
             return true;
@@ -210,7 +209,7 @@ bool decodeHuffman(std::unique_ptr<Body>& body) {
     std::size_t band = 0;
     for (std::size_t i = 0; i < mcus->mcuWidth * mcus->mcuHeight; i++) {
 
-        if (body->header->restartInterval != 0 && i % body->header->restartInterval == 0) {
+        if (body->header->restartInterval != 0 && i != 0 && i % body->header->restartInterval == 0) {
             previousDC.fill(0);
             body->data.align();
             band = 0;

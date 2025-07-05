@@ -10,7 +10,7 @@ uint8_t JpegDataStream::readBit(bool scan) {
                 uint8_t currentMarker = file.peek();
                 if (currentMarker == MARKERSTART) {
                     file.get(); // 0xFFFF00.. -> 0x00.., 0xFF in currentByte, 0x00 in currentMarker
-                    currentMarker = file.peek();
+                    currentMarker = 0xFF;
                 } else if (!currentMarker) {
                     file.get(); // 0xFF00AA.. -> 0xAA.., 0xFF in currentByte
                     break;
