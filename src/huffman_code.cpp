@@ -187,7 +187,7 @@ bool decodeMCU(JpegDataStream& stream, MCUComponents& mcu, const HuffmanDecodeTa
             }
 
             // Because of underskip logic, we check overrun a second time
-            if (i >= MCUX) {
+            if (i >= progressiveInfo.endOfSpectral) {
                 std::cerr << "Decode error: AC decoding MCU subpart overflow" << std::endl;
                 return false;
             }
@@ -205,20 +205,6 @@ bool decodeHuffman(std::unique_ptr<Body>& body) {
 
     auto mcus = std::move(body->mcu);
     uint8_t n = body->header->type == SOF0 ? 2 : 4;
-
-    // for (auto& table : body->header->huffmanTable) {
-    //     if ((table.tableClass > DHTMHT || table.identifier > DHTMHT) && body->header->type == SOF0 ||
-    //         (table.identifier > DHTMHT2 || table.tableClass > DHTMHT2) && body->header->type == SOF2) {
-    //         std::cerr << "Decode error: number of class and identifier in DHT not supported" << std::endl;
-    //         return false;
-    //     }
-    //     if (!table.completed) {
-    //         continue;
-    //     }
-    //     if (!fillDecodeTable(table, body->header->decodeTables[table.tableClass * n + table.identifier])) {
-    //         return false;
-    //     }
-    // }
 
     std::array<int16_t, 4> previousDC{};
     std::size_t band = 0;
