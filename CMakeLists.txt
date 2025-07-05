@@ -25,6 +25,7 @@ add_executable(a.out
     ${PROJECT_SOURCE_DIR}/jpeg_header.cpp
     ${PROJECT_SOURCE_DIR}/jpeg_scan.cpp
     ${PROJECT_SOURCE_DIR}/quantization.cpp
+    ${PROJECT_SOURCE_DIR}/jpeg_transform.cpp
     ${PROJECT_SOURCE_DIR}/dct.cpp
     ${PROJECT_SOURCE_DIR}/color_conversion.cpp
     ${PROJECT_SOURCE_DIR}/jpeg_data_stream.cpp

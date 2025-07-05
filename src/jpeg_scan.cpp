@@ -24,6 +24,7 @@ bool scanProgressiveMarker(JpegDataStream& jpegStream, std::unique_ptr<Body>& bo
         printDHTTable(*body->header);
         return true;
     case SOS:
+        // dataToImage(body);
         if (!fillSOS(jpegStream, body->header)) {
             std::cerr << "Could not read subsequent SOS marker" << std::endl;
             return false;
@@ -97,15 +98,23 @@ std::unique_ptr<Body> fillScans(JpegDataStream& jpegStream, std::unique_ptr<Head
     }
 
     auto mcu = std::make_unique<MCU>();
+    auto mcuDecoded = std::make_unique<MCU>();
+
     mcu->mcuWidth = (body->header->width + 7) / 8;
     mcu->mcuHeight = (body->header->height + 7) / 8;
     mcu->mcuData.resize(mcu->mcuWidth * mcu->mcuHeight);
+
+    mcuDecoded->mcuWidth = mcu->mcuWidth;
+    mcuDecoded->mcuHeight = mcu->mcuHeight;
+    mcuDecoded->mcuData.reserve(mcuDecoded->mcuWidth * mcuDecoded->mcuHeight);
+
     for (auto& mcuData : mcu->mcuData) {
         for (auto i = 0; i < body->header->numberComponents; i++) {
             mcuData[i].fill(0);
         }
     }
     body->mcu = std::move(mcu);
+    body->mcuDecoded = std::move(mcuDecoded);
 
     // First scan
     if (!fillSOS(jpegStream, body->header)) {
@@ -117,9 +126,9 @@ std::unique_ptr<Body> fillScans(JpegDataStream& jpegStream, std::unique_ptr<Head
     decodeHuffman(body);
     printSOSTable(*body->header);
 
-    // Progressive loop only
     while (!jpegStream.isEOF()) {
-        jpegStream.align(); // In case stream ends not aligned
+        jpegStream.align();
+        std::cout << jpegStream.tell() << " - " << std::to_string(jpegStream.bitPos) << std::endl;
         uint8_t prefix = jpegStream.readByte();
         uint8_t type = jpegStream.readByte();
 

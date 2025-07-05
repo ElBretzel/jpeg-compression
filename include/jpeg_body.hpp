@@ -18,6 +18,7 @@ struct Body {
     std::unique_ptr<Header> header;
     JpegDataStream& data;
     std::unique_ptr<MCU> mcu;
+    std::unique_ptr<MCU> mcuDecoded; // Used for progressive live demo
 
     Body(JpegDataStream& dataStream) : data(dataStream) {}
 };

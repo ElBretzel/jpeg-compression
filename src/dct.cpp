@@ -59,10 +59,10 @@ void IDCT(MCUComponents& data, uint8_t mcuSize) {
 }
 
 void inverseDCT(std::unique_ptr<Body>& body) {
-    precomputeLUT(body->mcu->size);
-    for (auto& mcuData : body->mcu->mcuData) {
+    precomputeLUT(body->mcuDecoded->size);
+    for (auto& mcuData : body->mcuDecoded->mcuData) {
         for (uint8_t comp = 0; comp < body->header->numberComponents; ++comp) {
-            IDCT(mcuData[comp], body->mcu->size);
+            IDCT(mcuData[comp], body->mcuDecoded->size);
         }
     }
 }

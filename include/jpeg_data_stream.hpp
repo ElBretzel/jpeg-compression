@@ -33,9 +33,9 @@ class JpegDataStream {
     std::streampos tell() {
         return file.tellg();
     }
+    std::uint8_t bitPos;
 
   private:
     std::ifstream file;
-    std::uint8_t bitPos;
     uint8_t currentByte;
 };

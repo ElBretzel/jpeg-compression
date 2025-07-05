@@ -12,8 +12,8 @@ RGB YCbCrToRGB(const YCbCr& comp) {
 }
 
 void convertMCUToRGB(std::unique_ptr<Body>& body) {
-    for (auto& mcu : body->mcu->mcuData) {
-        for (uint8_t i = 0; i < body->mcu->size * body->mcu->size; i++) {
+    for (auto& mcu : body->mcuDecoded->mcuData) {
+        for (uint8_t i = 0; i < body->mcuDecoded->size * body->mcuDecoded->size; i++) {
             YCbCr ycbcr;
             if (body->header->numberComponents == 1) {
                 ycbcr = {mcu[0][i], mcu[0][i], mcu[0][i]};
