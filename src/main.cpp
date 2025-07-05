@@ -3,7 +3,8 @@
 #include "jpeg_transform.hpp"
 
 void prelude() {
-    JpegDataStream jpegStream = JpegDataStream("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/prog/panda.jpg");
+    JpegDataStream jpegStream =
+        JpegDataStream("/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/correct_format.jpg");
     auto header = scanHeader(jpegStream);
     auto body = fillScans(jpegStream, header);
     header = nullptr; // Ownership moved into body

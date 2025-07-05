@@ -132,8 +132,9 @@ bool decodeMCU(JpegDataStream& stream, MCUComponents& mcu, const HuffmanDecodeTa
             mcu[reverseZigZagMap[0]] = previousDC << progressiveInfo.successiveBitLow;
             return true;
         } else if (progressiveInfo.successiveBitHigh != 0 && progressiveInfo.startOfSpectral == 0) {
-            // Other visits
-            return true;
+            std::cerr << "Decode Huffman progressive: DC refinement not implemented yet" << std::endl;
+            // See important note in AC refinement
+            return false;
         }
         // AC
         else if (progressiveInfo.successiveBitHigh == 0 && progressiveInfo.startOfSpectral != 0) {
@@ -193,11 +194,17 @@ bool decodeMCU(JpegDataStream& stream, MCUComponents& mcu, const HuffmanDecodeTa
             }
             return true;
         } else if (progressiveInfo.successiveBitHigh != 0 && progressiveInfo.startOfSpectral != 0) {
-            // Other visits
-            return true;
+
+            // IMPORTANT NOTE:
+            // The whole AC refinement is not implemented
+            // It is because the code is extremely undocumented on official JPEG documentation
+            // ITU-T T.81 Annex G Fig G.7 (Only encoding is "explained")
+            // So only the first visit is implemented and not all progressive jpeg can be decoded
+            std::cerr << "Decode Huffman progressive: AC refinement not implemented yet" << std::endl;
+            return false;
         }
+        return true;
     }
-    return true;
 }
 
 bool decodeHuffman(std::unique_ptr<Body>& body) {
