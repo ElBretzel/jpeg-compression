@@ -7,7 +7,7 @@
 
 class JpegDataStream {
   public:
-    JpegDataStream(const std::string& streamPath) : file(streamPath, std::ios::binary) {
+    JpegDataStream(const std::string& streamPath) : file(streamPath, std::ios::binary), filePath(streamPath) {
         if (streamPath.empty()) {
             std::cerr << "Can not check validity of jpeg file: " << "path is empty" << std::endl;
         }
@@ -33,9 +33,10 @@ class JpegDataStream {
     std::streampos tell() {
         return file.tellg();
     }
-    std::uint8_t bitPos;
-    uint8_t currentByte;
+    const std::string& filePath;
 
   private:
     std::ifstream file;
+    std::uint8_t bitPos;
+    uint8_t currentByte;
 };

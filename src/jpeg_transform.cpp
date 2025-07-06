@@ -1,26 +1,29 @@
 #include "jpeg_transform.hpp"
+#include <filesystem>
 
 static int n = 0;
 
-void writePPM(std::unique_ptr<Body>& image, const std::string& filename) {
-    // if (!image || !image->header || !image->mcu || !image->isValid || !image->mcu->isValid) {
-    //     std::cout << "Error - Invalid image data\n";
-    //     return;
-    // }
+void writePPM(std::unique_ptr<Body>& image) {
+    const std::string& jpegPath = image->data.filePath;
 
-    std::cout << "Writing " << filename << "...\n";
-    std::string fileFinal = filename + std::to_string(n++) + ".ppm";
+    std::filesystem::path inputPath(jpegPath);
+    std::string filename = inputPath.stem().string(); // e.g., "photo"
+    std::string outDir = inputPath.parent_path().string() + "/output";
 
-    std::ofstream outFile(fileFinal, std::ios::out | std::ios::binary);
+    std::filesystem::create_directories(outDir);
+
+    std::string outFilePath = outDir + "/" + filename + "_" + std::to_string(n++) + ".ppm";
+    std::cout << "Writing " << outFilePath << "...\n";
+
+    std::ofstream outFile(outFilePath, std::ios::out | std::ios::binary);
     if (!outFile.is_open()) {
-        std::cout << "Error - Could not open output file\n";
+        std::cerr << "Error - Could not open output file\n";
         return;
     }
 
     const uint16_t width = image->header->width;
     const uint16_t height = image->header->height;
 
-    // PPM header
     outFile << "P6\n" << width << " " << height << "\n255\n";
     std::vector<uint8_t> buffer(width * height * 3);
 
@@ -33,13 +36,10 @@ void writePPM(std::unique_ptr<Body>& image, const std::string& filename) {
             const uint mcuIndex = mcuRow * image->mcuDecoded->mcuWidth + mcuColumn;
             const uint pixelIndex = pixelRow * 8 + pixelColumn;
 
-            // Assuming MCUData[0] = Y, [1] = Cb, [2] = Cr and [3] = RGB (after color conversion)
             uint8_t r, g, b;
             switch (image->header->numberComponents) {
             case 1:
-                r = image->mcuDecoded->mcuData[mcuIndex][0][pixelIndex];
-                g = image->mcuDecoded->mcuData[mcuIndex][0][pixelIndex];
-                b = image->mcuDecoded->mcuData[mcuIndex][0][pixelIndex];
+                r = g = b = image->mcuDecoded->mcuData[mcuIndex][0][pixelIndex];
                 break;
             case 3:
                 r = image->mcuDecoded->mcuData[mcuIndex][0][pixelIndex];
@@ -47,7 +47,7 @@ void writePPM(std::unique_ptr<Body>& image, const std::string& filename) {
                 b = image->mcuDecoded->mcuData[mcuIndex][2][pixelIndex];
                 break;
             default:
-                std::cerr << "Only 1 or 3 channels supported" << std::abort;
+                std::cerr << "Only 1 or 3 channels supported" << std::endl;
                 return;
             }
 
@@ -72,5 +72,5 @@ void dataToImage(std::unique_ptr<Body>& body) {
     dequantize(body);
     inverseDCT(body);
     convertMCUToRGB(body);
-    writePPM(body, "/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/out");
+    writePPM(body);
 }
