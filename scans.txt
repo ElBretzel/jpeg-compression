@@ -1,0 +1,14 @@
+# DC - Chrominance and luminance (0)
+0,1,2: 0 0 0 0;
+# DC + 4 AC Luminance (1)
+0: 1 5 0 0;
+# DC + 32 AC Luminance (2)
+0: 6 32 0 0;
+# DC + 32 AC Chrominance (3)
+1: 1 32 0 0;
+2: 1 32 0 0;
+# DC + 64 AC Luminance (4)
+0: 33 63 0 0;
+# DC + 64 AC Chrominance (5)
+1: 33 63 0 0;
+2: 33 63 0 0;

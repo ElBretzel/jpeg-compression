@@ -10,7 +10,6 @@ int main(int argc, char* argv[]) {
     }
 
     std::string jpegPath = argv[1];
-    // std::string jpegPath = "/home/dluca/Documents/Epita/TIFO/jpeg-compression/demo/cat.jpg";
 
     JpegDataStream jpegStream(jpegPath);
     auto header = scanHeader(jpegStream);
